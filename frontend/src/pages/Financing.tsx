@@ -90,7 +90,8 @@ export function Financing() {
       const maturityDays = 90n;
       const feeBps = 50n;
       const timestamp = BigInt(Date.now());
-      const result = await veilManager.deployAndWait('Financing', [financingId, invoiceId, sellerId, investorId, maturityDays, feeBps, timestamp]);
+      const result = await veilManager.deployAndWait('Financing', []);
+      await veilManager.call('Financing', result.contractAddress, 'commitCreditScore', [sellerId]);
       setFinancingAddress(result.contractAddress);
       localStorage.setItem('veil_financing_address', result.contractAddress);
       localStorage.setItem('veil_financingId', toHex(financingId));

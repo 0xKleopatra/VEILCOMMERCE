@@ -85,7 +85,8 @@ export function EscrowPage() {
       const sellerId = session.coinPublicKeyBytes ?? new Uint8Array(32);
       const timestamp = BigInt(Date.now());
       console.log('[Escrow] Deploying Escrow', toHex(escrowId).slice(0, 12), 'via veilManager');
-      const result = await veilManager.deployAndWait('Escrow', [escrowId, orderId, sellerId, timestamp]);
+      const result = await veilManager.deployAndWait('Escrow', []);
+      await veilManager.call('Escrow', result.contractAddress, 'createEscrow', [escrowId, orderId, sellerId, timestamp]);
       setDeployedAddress(result.contractAddress);
       setEscrowAddress(result.contractAddress);
       setEscrowAddressInput(result.contractAddress);

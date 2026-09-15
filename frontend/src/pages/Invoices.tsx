@@ -86,7 +86,8 @@ export function Invoices() {
       const issuerId = session.coinPublicKeyBytes ?? new Uint8Array(32);
       const dueAt = BigInt(Date.now()) + 30n * 24n * 60n * 60n * 1000n;
       const timestamp = BigInt(Date.now());
-      const result = await veilManager.deployAndWait('Invoice', [invoiceId, orderId, dueAt, timestamp]);
+      const result = await veilManager.deployAndWait('Invoice', []);
+      await veilManager.call('Invoice', result.contractAddress, 'issue', [invoiceId, orderId, dueAt, timestamp]);
       setInvoiceAddress(result.contractAddress);
       localStorage.setItem('veil_invoice_address', result.contractAddress);
       localStorage.setItem('veil_invoiceId', toHex(invoiceId));

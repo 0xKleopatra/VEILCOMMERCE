@@ -88,7 +88,8 @@ export function Trade() {
       const currencyBytes = new TextEncoder().encode(state.currency.padEnd(32, '\0')).slice(0, 32);
       const timestamp = BigInt(Date.now());
       console.log('[Trade] Deploying PurchaseOrder via veilManager', toHex(orderIdBytes).slice(0, 16) + '…');
-      const result = await veilManager.deployAndWait('PurchaseOrder', [orderIdBytes, sellerId, currencyBytes, timestamp]);
+      const result = await veilManager.deployAndWait('PurchaseOrder', []);
+      await veilManager.call('PurchaseOrder', result.contractAddress, 'createPurchaseOrder', [orderIdBytes, sellerId, currencyBytes, timestamp]);
       setContractAddress(result.contractAddress);
       setState((prev) => ({ ...prev, orderId: result.contractAddress.slice(0, 12), orderIdBytes }));
       localStorage.setItem('veil_purchaseOrder_address', result.contractAddress);
@@ -146,7 +147,8 @@ export function Trade() {
       const sellerId = session.coinPublicKeyBytes ?? new Uint8Array(32);
       const timestamp = BigInt(Date.now());
       console.log('[Trade] Deploying Escrow', toHex(escrowId).slice(0, 12), 'for order', toHex(state.orderIdBytes).slice(0, 12));
-      const result = await veilManager.deployAndWait('Escrow', [escrowId, state.orderIdBytes, sellerId, timestamp]);
+      const result = await veilManager.deployAndWait('Escrow', []);
+      await veilManager.call('Escrow', result.contractAddress, 'createEscrow', [escrowId, state.orderIdBytes, sellerId, timestamp]);
       setEscrowAddress(result.contractAddress);
       localStorage.setItem('veil_escrow_address', result.contractAddress);
       localStorage.setItem('veil_escrowId', toHex(escrowId));

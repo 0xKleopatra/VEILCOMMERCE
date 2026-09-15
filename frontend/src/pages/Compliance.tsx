@@ -78,7 +78,8 @@ export function Compliance() {
     try {
       const adminId = session.coinPublicKeyBytes ?? new Uint8Array(32);
       const timestamp = BigInt(Date.now());
-      const result = await veilManager.deployAndWait('Compliance', [subjectId, adminId, timestamp]);
+      const result = await veilManager.deployAndWait('Compliance', []);
+      await veilManager.call('Compliance', result.contractAddress, 'attestCompliance', [subjectId, adminId, timestamp]);
       setComplianceAddress(result.contractAddress);
       localStorage.setItem('veil_compliance_address', result.contractAddress);
       localStorage.setItem('veil_subjectId', toHex(subjectId));
