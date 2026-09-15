@@ -7,12 +7,13 @@
 // No mocks. Each action submits a real circuit call through the connected wallet.
 // =============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from "react";
 import { Link } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import WalletConnect from '../components/WalletConnect';
 import { veilManager, queryVeilLedger } from '../midnight/veilcommerce-manager';
 import { toHex } from '../lib/hex';
+import { getDeployedContractAddress } from '../midnight/deployments';
 
 interface FinancingRecord {
   financingId: Uint8Array;
@@ -47,6 +48,7 @@ function parseHex(input: string): Uint8Array | null {
 export function Financing() {
   const { isConnected, session, address } = useWallet();
   const [financingAddress, setFinancingAddress] = useState<string | null>(() => localStorage.getItem('veil_financing_address') || null);
+  useEffect(() => { (async () => { if (!financingAddress) { const addr = await getDeployedContractAddress("Financing"); if (addr) setFinancingAddress(addr); } })(); }, [financingAddress]);
   const [financingIdHex, setFinancingIdHex] = useState(() => localStorage.getItem('veil_financingId') || '');
   const [proving, setProving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

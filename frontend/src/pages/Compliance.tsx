@@ -7,12 +7,13 @@
 // No mocks. Each action submits a real circuit call through the connected wallet.
 // =============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from "react";
 import { Link } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import WalletConnect from '../components/WalletConnect';
 import { veilManager, queryVeilLedger } from '../midnight/veilcommerce-manager';
 import { toHex } from '../lib/hex';
+import { getDeployedContractAddress } from '../midnight/deployments';
 
 interface ComplianceRecord {
   subjectId: Uint8Array;
@@ -39,6 +40,7 @@ function parseHex(input: string): Uint8Array | null {
 export function Compliance() {
   const { isConnected, session, address } = useWallet();
   const [complianceAddress, setComplianceAddress] = useState<string | null>(() => localStorage.getItem('veil_compliance_address') || null);
+  useEffect(() => { (async () => { if (!complianceAddress) { const addr = await getDeployedContractAddress("Compliance"); if (addr) setComplianceAddress(addr); } })(); }, [complianceAddress]);
   const [subjectIdHex, setSubjectIdHex] = useState(() => localStorage.getItem('veil_subjectId') || '');
   const [proving, setProving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

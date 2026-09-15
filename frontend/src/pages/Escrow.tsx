@@ -6,12 +6,13 @@
 // ledger through the indexer (queryVeilLedger). No mocks.
 // =============================================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from "react";
 import { Link } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import WalletConnect from '../components/WalletConnect';
 import { veilManager, queryVeilLedger } from '../midnight/veilcommerce-manager';
 import { toHex } from '../lib/hex';
+import { getDeployedContractAddress } from '../midnight/deployments';
 
 const STATE_LABELS: Record<number, { label: string; className: string }> = {
   0: { label: 'Empty', className: 'text-veil-500' },
@@ -40,6 +41,7 @@ export function EscrowPage() {
   const [ledger, setLedger] = useState<any>(null);
   const [record, setRecord] = useState<any>(null);
   const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
+  useEffect(() => { (async () => { if (!escrowAddress) { const addr = await getDeployedContractAddress('Escrow'); if (addr) { setEscrowAddress(addr); setEscrowAddressInput(addr); } } })(); }, [escrowAddress]);
 
   const escrowId = parseHex(escrowIdHex);
 
