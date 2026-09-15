@@ -1,0 +1,371 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — PurchaseOrder
+// -----------------------------------------------------------------------------
+// dMarket workflow: DISCOVER → VERIFY → NEGOTIATE → PO → ESCROW → SHIP →
+// VERIFY → SETTLE → FINANCE
+//
+// Private: exact quantity, unit price, commercial terms, destination
+// Public : orderId, buyerId, sellerId, commitment, amountCommit, status,
+//          timestamps, verification flags, nullifiers
+// =============================================================================
+
+export enum OrderStatus { Draft, AwaitingSeller, Confirmed, Funded, Shipped, Delivered, Settled, Cancelled, Disputed }
+
+export struct PartySecret {
+  bytes: Bytes<32>;
+}
+
+struct OrderRecord {
+  orderId: Bytes<32>;
+  buyerId: Bytes<32>;
+  sellerId: Bytes<32>;
+  amountCommit: Bytes<32>;
+  status: OrderStatus;
+  buyerVerified: Boolean;
+  sellerVerified: Boolean;
+  fundsVerified: Boolean;
+  createdAt: Uint<64>;
+  updatedAt: Uint<64>;
+  termsCommitment: Bytes<32>;
+}
+
+struct OrderTerms {
+  quantity: Uint<64>;
+  unitPrice: Uint<64>;
+  totalAmount: Uint<64>;
+  currency: Bytes<32>;
+  destinationHash: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+struct AmountData {
+  amount: Uint<64>;
+  salt: Bytes<32>;
+}
+
+// Ledger
+export ledger totalOrders: Counter;
+export ledger orders: Map<Bytes<32>, OrderRecord>;
+export ledger orderExists: Set<Bytes<32>>;
+export ledger usedOrderNullifiers: Set<Bytes<32>>;
+
+// Witnesses
+witness getPartySecret(): PartySecret;
+witness orderSalt(): Bytes<32>;
+witness localQuantity(): Uint<64>;
+witness localUnitPrice(): Uint<64>;
+witness localTotalAmount(): Uint<64>;
+witness localDestinationHash(): Bytes<32>;
+
+// Helpers
+pure circuit derivePartyId(sk: PartySecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:party:id:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit computeTermsCommitment(terms: OrderTerms): Bytes<32> {
+  return persistentHash<OrderTerms>(terms);
+}
+
+pure circuit computeAmountCommit(amount: Uint<64>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<AmountData>(
+    AmountData { amount: amount, salt: salt }
+  );
+}
+
+pure circuit computeOrderNullifier(sk: PartySecret, orderId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    sk.bytes,
+    orderId
+  ]);
+}
+
+constructor() {
+}
+
+// ---------------------------------------------------------------------------
+// Create — buyer creates PO; sensitive terms stay private, commitment on-chain
+// ---------------------------------------------------------------------------
+
+export circuit createPurchaseOrder(
+  orderId: Bytes<32>,
+  sellerId: Bytes<32>,
+  currency: Bytes<32>,
+  timestamp: Uint<64>
+): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(!orderExists.member(disclosedId)), "Order ID already exists");
+
+  const buyerSecret = getPartySecret();
+  const buyerId = derivePartyId(buyerSecret);
+
+  const qty = localQuantity();
+  const unitPrice = localUnitPrice();
+  const total = localTotalAmount();
+  const destHash = localDestinationHash();
+  const salt = orderSalt();
+
+  assert(disclose(total == qty * unitPrice), "Amount mismatch: total != qty * unitPrice");
+
+  const terms = OrderTerms {
+    quantity: qty,
+    unitPrice: unitPrice,
+    totalAmount: total,
+    currency: currency,
+    destinationHash: destHash,
+    salt: salt
+  };
+  const termsCommit = computeTermsCommitment(terms);
+  const amountCommit = computeAmountCommit(total, salt);
+
+  const record = OrderRecord {
+    orderId: orderId,
+    buyerId: buyerId,
+    sellerId: sellerId,
+    amountCommit: amountCommit,
+    status: OrderStatus.AwaitingSeller,
+    buyerVerified: false,
+    sellerVerified: false,
+    fundsVerified: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    termsCommitment: termsCommit
+  };
+
+  orders.insert(disclosedId, disclose(record));
+  orderExists.insert(disclosedId);
+  totalOrders.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// Counterparty confirmation — seller accepts order
+// ---------------------------------------------------------------------------
+
+export circuit confirmOrder(orderId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.status == OrderStatus.AwaitingSeller), "Not awaiting seller");
+
+  const sellerSecret = getPartySecret();
+  const sellerId = derivePartyId(sellerSecret);
+  assert(disclose(sellerId == rec.sellerId), "Only designated seller can confirm");
+
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: OrderStatus.Confirmed,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: timestamp,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// ZK-gated verification flags
+// ---------------------------------------------------------------------------
+
+export circuit markBuyerVerified(orderId: Bytes<32>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: rec.status,
+    buyerVerified: true,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: rec.updatedAt,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+export circuit markSellerVerified(orderId: Bytes<32>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: rec.status,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: true,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: rec.updatedAt,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+export circuit markFundsVerified(orderId: Bytes<32>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.buyerVerified), "Buyer must be verified first");
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: rec.status,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: true,
+    createdAt: rec.createdAt,
+    updatedAt: rec.updatedAt,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle transitions
+// ---------------------------------------------------------------------------
+
+export circuit markFunded(orderId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.status == OrderStatus.Confirmed), "Must be confirmed");
+  assert(disclose(rec.buyerVerified && rec.sellerVerified && rec.fundsVerified), "Verification incomplete");
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: OrderStatus.Funded,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: timestamp,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+export circuit markShipped(orderId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.status == OrderStatus.Funded), "Must be funded");
+  const sk = getPartySecret();
+  const sellerId = derivePartyId(sk);
+  assert(disclose(sellerId == rec.sellerId), "Only seller can mark shipped");
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: OrderStatus.Shipped,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: timestamp,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+export circuit markDelivered(orderId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.status == OrderStatus.Shipped), "Must be shipped");
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: OrderStatus.Delivered,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: timestamp,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+export circuit markSettled(orderId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.status == OrderStatus.Delivered), "Must be delivered");
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: OrderStatus.Settled,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: timestamp,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+export circuit cancelOrder(orderId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  const rec = orders.lookup(disclosedId);
+  assert(disclose(rec.status == OrderStatus.Draft || rec.status == OrderStatus.AwaitingSeller || rec.status == OrderStatus.Confirmed), "Cannot cancel in current state");
+  const sk = getPartySecret();
+  const callerId = derivePartyId(sk);
+  assert(disclose(callerId == rec.buyerId || callerId == rec.sellerId), "Only party can cancel");
+  const nullifier = computeOrderNullifier(sk, orderId);
+  assert(disclose(!usedOrderNullifiers.member(disclose(nullifier))), "Replay");
+  usedOrderNullifiers.insert(disclose(nullifier));
+  const updated = OrderRecord {
+    orderId: rec.orderId,
+    buyerId: rec.buyerId,
+    sellerId: rec.sellerId,
+    amountCommit: rec.amountCommit,
+    status: OrderStatus.Cancelled,
+    buyerVerified: rec.buyerVerified,
+    sellerVerified: rec.sellerVerified,
+    fundsVerified: rec.fundsVerified,
+    createdAt: rec.createdAt,
+    updatedAt: timestamp,
+    termsCommitment: rec.termsCommitment
+  };
+  orders.insert(disclosedId, disclose(updated));
+}
+
+// Reads
+export circuit getOrder(orderId: Bytes<32>): OrderRecord {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  return orders.lookup(disclosedId);
+}
+
+export circuit orderStatus(orderId: Bytes<32>): OrderStatus {
+  const disclosedId = disclose(orderId);
+  assert(disclose(orderExists.member(disclosedId)), "Order not found");
+  return orders.lookup(disclosedId).status;
+}

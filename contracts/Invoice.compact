@@ -1,0 +1,272 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Invoice (Private Invoicing)
+// -----------------------------------------------------------------------------
+// Privoice pattern → verified private receivable.
+// Invoice never goes on-chain. Only commitment + lifecycle state do.
+//
+// Private: amount, buyer partyId, memo, salt
+// Public : invoiceId, commitment, issuerId, order linkage, acknowledged,
+//          settled, voided, financingEligible, counts
+// =============================================================================
+
+export enum InvoiceStatus { Issued, Acknowledged, Settled, Voided, FinancingRequested, Financed }
+
+struct InvoiceTerms {
+  amount: Uint<64>;
+  buyer: Bytes<32>;
+  memo: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+struct InvoiceRecord {
+  invoiceId: Bytes<32>;
+  orderId: Bytes<32>;
+  commitment: Bytes<32>;
+  issuerId: Bytes<32>;
+  status: InvoiceStatus;
+  createdAt: Uint<64>;
+  dueAt: Uint<64>;
+}
+
+// Ledger — public
+export ledger invoices: Map<Bytes<32>, Bytes<32>>;
+export ledger invoiceRecords: Map<Bytes<32>, InvoiceRecord>;
+export ledger issuerOf: Map<Bytes<32>, Bytes<32>>;
+export ledger orderOf: Map<Bytes<32>, Bytes<32>>;
+export ledger acknowledged: Set<Bytes<32>>;
+export ledger settled: Set<Bytes<32>>;
+export ledger voided: Set<Bytes<32>>;
+export ledger financingEligible: Set<Bytes<32>>;
+export ledger totalInvoices: Counter;
+
+// Witnesses — private
+witness localSecretKey(): Bytes<32>;
+witness localAmount(): Uint<64>;
+witness localBuyer(): Bytes<32>;
+witness localMemo(): Bytes<32>;
+witness localSalt(): Bytes<32>;
+
+// Helpers — domain-separated identity
+pure circuit issuerId(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:invoice:issuer:v1"),
+    sk
+  ]);
+}
+
+pure circuit partyId(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:invoice:party:v1"),
+    sk
+  ]);
+}
+
+export pure circuit termsCommitment(
+  amount: Uint<64>,
+  buyer: Bytes<32>,
+  memo: Bytes<32>,
+  salt: Bytes<32>
+): Bytes<32> {
+  return persistentHash<InvoiceTerms>(
+    InvoiceTerms { amount: amount, buyer: buyer, memo: memo, salt: salt }
+  );
+}
+
+circuit callerTerms(): Bytes<32> {
+  return termsCommitment(localAmount(), localBuyer(), localMemo(), localSalt());
+}
+
+circuit assertIssuerOf(id: Bytes<32>): [] {
+  assert(invoiceRecords.member(disclose(id)), "Invoice: not found");
+  assert(issuerOf.lookup(disclose(id)) == issuerId(localSecretKey()), "Invoice: not issuer");
+}
+
+circuit assertOpen(id: Bytes<32>): [] {
+  assert(!settled.member(disclose(id)), "Invoice: already settled");
+  assert(!voided.member(disclose(id)), "Invoice: voided");
+}
+
+circuit assertInvoiceIssuer(id: Bytes<32>): [] {
+  assert(invoiceRecords.member(disclose(id)), "Invoice: not found");
+  assert(issuerOf.lookup(disclose(id)) == issuerId(localSecretKey()), "Invoice: not issuer");
+}
+
+constructor() {
+}
+
+// ---------------------------------------------------------------------------
+// Issue — seller creates invoice linked to a purchase order
+// ---------------------------------------------------------------------------
+
+export circuit issue(
+  invoiceId: Bytes<32>,
+  orderId: Bytes<32>,
+  dueAt: Uint<64>,
+  createdAt: Uint<64>
+): [] {
+  assert(!invoiceRecords.member(disclose(invoiceId)), "Invoice: id already used");
+  const commitment = callerTerms();
+  const issuer = issuerId(localSecretKey());
+  invoices.insert(disclose(invoiceId), disclose(commitment));
+  issuerOf.insert(disclose(invoiceId), disclose(issuer));
+  orderOf.insert(disclose(invoiceId), disclose(orderId));
+  const rec = InvoiceRecord {
+    invoiceId: invoiceId,
+    orderId: orderId,
+    commitment: commitment,
+    issuerId: issuer,
+    status: InvoiceStatus.Issued,
+    createdAt: createdAt,
+    dueAt: dueAt
+  };
+  invoiceRecords.insert(disclose(invoiceId), disclose(rec));
+  totalInvoices.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// Acknowledge — buyer proves they are the party named in the commitment
+// ---------------------------------------------------------------------------
+
+export circuit acknowledge(invoiceId: Bytes<32>): [] {
+  assert(invoiceRecords.member(disclose(invoiceId)), "Invoice: not found");
+  assertOpen(invoiceId);
+  assert(!acknowledged.member(disclose(invoiceId)), "Invoice: already acknowledged");
+  assert(localBuyer() == partyId(localSecretKey()), "Invoice: caller not the buyer");
+  assert(callerTerms() == invoices.lookup(disclose(invoiceId)), "Invoice: terms mismatch");
+  acknowledged.insert(disclose(invoiceId));
+  const rec = invoiceRecords.lookup(disclose(invoiceId));
+  const updated = InvoiceRecord {
+    invoiceId: rec.invoiceId,
+    orderId: rec.orderId,
+    commitment: rec.commitment,
+    issuerId: rec.issuerId,
+    status: InvoiceStatus.Acknowledged,
+    createdAt: rec.createdAt,
+    dueAt: rec.dueAt
+  };
+  invoiceRecords.insert(disclose(invoiceId), disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Financing eligibility
+// ---------------------------------------------------------------------------
+
+export circuit markFinancingEligible(invoiceId: Bytes<32>): [] {
+  assert(invoiceRecords.member(disclose(invoiceId)), "Invoice: not found");
+  assert(acknowledged.member(disclose(invoiceId)), "Invoice: not acknowledged");
+  assert(!settled.member(disclose(invoiceId)), "Invoice: already settled");
+  assert(!voided.member(disclose(invoiceId)), "Invoice: voided");
+  financingEligible.insert(disclose(invoiceId));
+  const rec = invoiceRecords.lookup(disclose(invoiceId));
+  const updated = InvoiceRecord {
+    invoiceId: rec.invoiceId,
+    orderId: rec.orderId,
+    commitment: rec.commitment,
+    issuerId: rec.issuerId,
+    status: InvoiceStatus.FinancingRequested,
+    createdAt: rec.createdAt,
+    dueAt: rec.dueAt
+  };
+  invoiceRecords.insert(disclose(invoiceId), disclose(updated));
+}
+
+export circuit markFinanced(invoiceId: Bytes<32>): [] {
+  assert(invoiceRecords.member(disclose(invoiceId)), "Invoice: not found");
+  assert(financingEligible.member(disclose(invoiceId)), "Invoice: not eligible");
+  const rec = invoiceRecords.lookup(disclose(invoiceId));
+  const updated = InvoiceRecord {
+    invoiceId: rec.invoiceId,
+    orderId: rec.orderId,
+    commitment: rec.commitment,
+    issuerId: rec.issuerId,
+    status: InvoiceStatus.Financed,
+    createdAt: rec.createdAt,
+    dueAt: rec.dueAt
+  };
+  invoiceRecords.insert(disclose(invoiceId), disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Settle — issuer records payment received; amount stays private
+// ---------------------------------------------------------------------------
+
+export circuit settle(invoiceId: Bytes<32>): [] {
+  assertInvoiceIssuer(invoiceId);
+  assertOpen(invoiceId);
+  assert(acknowledged.member(disclose(invoiceId)), "Invoice: not acknowledged");
+  assert(callerTerms() == invoices.lookup(disclose(invoiceId)), "Invoice: terms mismatch on settle");
+  settled.insert(disclose(invoiceId));
+  const rec = invoiceRecords.lookup(disclose(invoiceId));
+  const updated = InvoiceRecord {
+    invoiceId: rec.invoiceId,
+    orderId: rec.orderId,
+    commitment: rec.commitment,
+    issuerId: rec.issuerId,
+    status: InvoiceStatus.Settled,
+    createdAt: rec.createdAt,
+    dueAt: rec.dueAt
+  };
+  invoiceRecords.insert(disclose(invoiceId), disclose(updated));
+}
+
+export circuit voidInvoice(invoiceId: Bytes<32>): [] {
+  assertInvoiceIssuer(invoiceId);
+  assert(!settled.member(disclose(invoiceId)), "Invoice: already settled");
+  assert(!voided.member(disclose(invoiceId)), "Invoice: already voided");
+  voided.insert(disclose(invoiceId));
+  const rec = invoiceRecords.lookup(disclose(invoiceId));
+  const updated = InvoiceRecord {
+    invoiceId: rec.invoiceId,
+    orderId: rec.orderId,
+    commitment: rec.commitment,
+    issuerId: rec.issuerId,
+    status: InvoiceStatus.Voided,
+    createdAt: rec.createdAt,
+    dueAt: rec.dueAt
+  };
+  invoiceRecords.insert(disclose(invoiceId), disclose(updated));
+}
+
+// Reads
+
+export circuit exists(invoiceId: Bytes<32>): Boolean {
+  return invoiceRecords.member(disclose(invoiceId));
+}
+
+export circuit isSettled(invoiceId: Bytes<32>): Boolean {
+  return settled.member(disclose(invoiceId));
+}
+
+export circuit isAcknowledged(invoiceId: Bytes<32>): Boolean {
+  return acknowledged.member(disclose(invoiceId));
+}
+
+export circuit isFinancingEligible(invoiceId: Bytes<32>): Boolean {
+  return financingEligible.member(disclose(invoiceId));
+}
+
+export circuit commitmentOf(invoiceId: Bytes<32>): Bytes<32> {
+  assert(invoiceRecords.member(disclose(invoiceId)), "Invoice: not found");
+  return invoices.lookup(disclose(invoiceId));
+}
+
+export circuit getRecord(invoiceId: Bytes<32>): InvoiceRecord {
+  assert(invoiceRecords.member(disclose(invoiceId)), "Invoice: not found");
+  return invoiceRecords.lookup(disclose(invoiceId));
+}
+
+export circuit verifyCommitment(
+  invoiceId: Bytes<32>,
+  amount: Uint<64>,
+  buyer: Bytes<32>,
+  memo: Bytes<32>,
+  salt: Bytes<32>
+): Boolean {
+  assert(invoiceRecords.member(disclose(invoiceId)), "Invoice: not found");
+  const recomputed = termsCommitment(amount, buyer, memo, salt);
+  return invoices.lookup(disclose(invoiceId)) == recomputed;
+}

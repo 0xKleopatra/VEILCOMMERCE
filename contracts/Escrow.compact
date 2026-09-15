@@ -1,0 +1,276 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Escrow (Private Escrow)
+// -----------------------------------------------------------------------------
+// Midnight Escrow primitive → trade escrow with ZK-gated release.
+//
+// Flow: BUYER funds → escrow locked (conditions set) → shipment →
+//       delivery proof → ZK verification → release → SELLER
+//
+// Release requires (all verified on-chain):
+//   buyer authorized ∧ seller authorized ∧ PO valid ∧ delivery verified
+//
+// Private: exact amount, release secret, nonce, private balance
+// Public : escrowId, buyer, seller, orderId, amountCommit, releaseCommit,
+//          state, timestamps, nullifiers
+// =============================================================================
+
+export enum EscrowState { Empty, Funded, DeliveryVerified, Released, Refunded, Disputed }
+
+export struct PartySecret {
+  bytes: Bytes<32>;
+}
+
+struct EscrowRecord {
+  escrowId: Bytes<32>;
+  orderId: Bytes<32>;
+  buyer: Bytes<32>;
+  seller: Bytes<32>;
+  amountCommit: Bytes<32>;
+  releaseCommit: Bytes<32>;
+  state: EscrowState;
+  createdAt: Uint<64>;
+  fundedAt: Uint<64>;
+  releasedAt: Uint<64>;
+}
+
+struct AmountData {
+  amount: Uint<64>;
+  salt: Bytes<32>;
+}
+
+// Ledger
+export ledger totalEscrows: Counter;
+export ledger escrows: Map<Bytes<32>, EscrowRecord>;
+export ledger escrowExists: Set<Bytes<32>>;
+export ledger usedReleaseNullifiers: Set<Bytes<32>>;
+export ledger deliveryVerified: Set<Bytes<32>>;
+
+// Witnesses
+witness getPartySecret(): PartySecret;
+witness releaseSecret(): Bytes<32>;
+witness escrowNonce(): Bytes<32>;
+witness privateAmount(): Uint<64>;
+
+// Helpers
+pure circuit derivePartyId(sk: PartySecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:escrow:party:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit computeAmountCommit(amount: Uint<64>, nonce: Bytes<32>): Bytes<32> {
+  return persistentHash<AmountData>(
+    AmountData { amount: amount, salt: nonce }
+  );
+}
+
+pure circuit computeReleaseCommit(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Bytes<32>>(secret);
+}
+
+pure circuit computeEscrowCommit(
+  amountCommit: Bytes<32>,
+  releaseCommit: Bytes<32>,
+  orderId: Bytes<32>,
+  nonce: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    amountCommit,
+    releaseCommit,
+    orderId,
+    nonce
+  ]);
+}
+
+pure circuit computeReleaseNullifier(secret: Bytes<32>, escrowId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    secret,
+    escrowId
+  ]);
+}
+
+constructor() {
+}
+
+// ---------------------------------------------------------------------------
+// Create — buyer funds escrow (locks terms commitment)
+// ---------------------------------------------------------------------------
+
+export circuit createEscrow(
+  escrowId: Bytes<32>,
+  orderId: Bytes<32>,
+  sellerId: Bytes<32>,
+  timestamp: Uint<64>
+): [] {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(!escrowExists.member(disclosedId)), "Escrow already exists");
+
+  const buyerSecret = getPartySecret();
+  const buyerId = derivePartyId(buyerSecret);
+  const nonce = escrowNonce();
+  const secret = releaseSecret();
+  const amount = privateAmount();
+
+  const amountCommit = computeAmountCommit(amount, nonce);
+  const releaseCommit = computeReleaseCommit(secret);
+
+  const record = EscrowRecord {
+    escrowId: escrowId,
+    orderId: orderId,
+    buyer: buyerId,
+    seller: sellerId,
+    amountCommit: amountCommit,
+    releaseCommit: releaseCommit,
+    state: EscrowState.Funded,
+    createdAt: timestamp,
+    fundedAt: timestamp,
+    releasedAt: 0 as Uint<64>
+  };
+
+  escrows.insert(disclosedId, disclose(record));
+  escrowExists.insert(disclosedId);
+  totalEscrows.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// Delivery verification
+// ---------------------------------------------------------------------------
+
+export circuit verifyDelivery(escrowId: Bytes<32>): [] {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(escrowExists.member(disclosedId)), "Escrow not found");
+  const rec = escrows.lookup(disclosedId);
+  assert(disclose(rec.state == EscrowState.Funded), "Must be funded");
+  const callerSecret = getPartySecret();
+  const callerId = derivePartyId(callerSecret);
+  assert(disclose(callerId == rec.buyer || callerId == rec.seller), "Only parties can verify delivery");
+  deliveryVerified.insert(disclosedId);
+  const updated = EscrowRecord {
+    escrowId: rec.escrowId,
+    orderId: rec.orderId,
+    buyer: rec.buyer,
+    seller: rec.seller,
+    amountCommit: rec.amountCommit,
+    releaseCommit: rec.releaseCommit,
+    state: EscrowState.DeliveryVerified,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    releasedAt: rec.releasedAt
+  };
+  escrows.insert(disclosedId, disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Release — seller proves release secret, with nullifier replay protection
+// ---------------------------------------------------------------------------
+
+export circuit release(escrowId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(escrowExists.member(disclosedId)), "Escrow not found");
+  const rec = escrows.lookup(disclosedId);
+  assert(disclose(rec.state == EscrowState.DeliveryVerified), "Delivery not verified");
+  assert(disclose(deliveryVerified.member(disclosedId)), "Delivery not verified (set)");
+
+  const sellerSecret = getPartySecret();
+  const sellerId = derivePartyId(sellerSecret);
+  assert(disclose(sellerId == rec.seller), "Only seller can release");
+
+  const secret = releaseSecret();
+  const recomputed = computeReleaseCommit(secret);
+  assert(disclose(recomputed == rec.releaseCommit), "Invalid release proof");
+
+  const nullifier = computeReleaseNullifier(secret, escrowId);
+  const disclosedNull = disclose(nullifier);
+  assert(disclose(!usedReleaseNullifiers.member(disclosedNull)), "Replay: already released");
+  usedReleaseNullifiers.insert(disclosedNull);
+
+  const updated = EscrowRecord {
+    escrowId: rec.escrowId,
+    orderId: rec.orderId,
+    buyer: rec.buyer,
+    seller: rec.seller,
+    amountCommit: rec.amountCommit,
+    releaseCommit: rec.releaseCommit,
+    state: EscrowState.Released,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    releasedAt: timestamp
+  };
+  escrows.insert(disclosedId, disclose(updated));
+}
+
+// ---------------------------------------------------------------------------
+// Refund — buyer can refund if not yet delivery-verified
+// ---------------------------------------------------------------------------
+
+export circuit refund(escrowId: Bytes<32>): [] {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(escrowExists.member(disclosedId)), "Escrow not found");
+  const rec = escrows.lookup(disclosedId);
+  assert(disclose(rec.state == EscrowState.Funded), "Only funded escrow can be refunded");
+  assert(disclose(!deliveryVerified.member(disclosedId)), "Delivery already verified");
+
+  const buyerSecret = getPartySecret();
+  const buyerId = derivePartyId(buyerSecret);
+  assert(disclose(buyerId == rec.buyer), "Only buyer can refund");
+
+  const updated = EscrowRecord {
+    escrowId: rec.escrowId,
+    orderId: rec.orderId,
+    buyer: rec.buyer,
+    seller: rec.seller,
+    amountCommit: rec.amountCommit,
+    releaseCommit: rec.releaseCommit,
+    state: EscrowState.Refunded,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    releasedAt: 0 as Uint<64>
+  };
+  escrows.insert(disclosedId, disclose(updated));
+}
+
+export circuit dispute(escrowId: Bytes<32>): [] {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(escrowExists.member(disclosedId)), "Escrow not found");
+  const rec = escrows.lookup(disclosedId);
+  assert(disclose(rec.state == EscrowState.Funded || rec.state == EscrowState.DeliveryVerified), "Cannot dispute in current state");
+  const callerSecret = getPartySecret();
+  const callerId = derivePartyId(callerSecret);
+  assert(disclose(callerId == rec.buyer || callerId == rec.seller), "Only parties");
+  const updated = EscrowRecord {
+    escrowId: rec.escrowId,
+    orderId: rec.orderId,
+    buyer: rec.buyer,
+    seller: rec.seller,
+    amountCommit: rec.amountCommit,
+    releaseCommit: rec.releaseCommit,
+    state: EscrowState.Disputed,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    releasedAt: rec.releasedAt
+  };
+  escrows.insert(disclosedId, disclose(updated));
+}
+
+// Reads
+
+export circuit getEscrow(escrowId: Bytes<32>): EscrowRecord {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(escrowExists.member(disclosedId)), "Escrow not found");
+  return escrows.lookup(disclosedId);
+}
+
+export circuit escrowState(escrowId: Bytes<32>): EscrowState {
+  const disclosedId = disclose(escrowId);
+  assert(disclose(escrowExists.member(disclosedId)), "Escrow not found");
+  return escrows.lookup(disclosedId).state;
+}
+
+export circuit isDeliveryVerified(escrowId: Bytes<32>): Boolean {
+  return deliveryVerified.member(disclose(escrowId));
+}

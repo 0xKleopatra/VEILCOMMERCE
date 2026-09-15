@@ -1,0 +1,612 @@
+{
+  "compiler-version": "0.31.1",
+  "language-version": "0.23.0",
+  "runtime-version": "0.16.0",
+  "circuits": [
+    {
+      "name": "commitCreditScore",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "sellerId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "requestFinancing",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "invoiceId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "maturityDays",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 65535
+          }
+        },
+        {
+          "name": "feeBps",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 65535
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "verifyRisk",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "threshold",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 65535
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "fundInvoice",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "fundedAmount",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "repay",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "cancelFinancing",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "getFinancing",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Struct",
+        "name": "FinancingRecord",
+        "elements": [
+          {
+            "name": "financingId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "invoiceId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "sellerId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "investorId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "faceValueCommit",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "requestedCommit",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "fundedAmount",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "feeBps",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 65535
+            }
+          },
+          {
+            "name": "maturityDays",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 65535
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "FinancingStatus",
+              "elements": [
+                "Requested",
+                "Funded",
+                "Repaid",
+                "Defaulted",
+                "Cancelled"
+              ]
+            }
+          },
+          {
+            "name": "riskVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "fundedAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "repaidAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "financingStatus",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Enum",
+        "name": "FinancingStatus",
+        "elements": [
+          "Requested",
+          "Funded",
+          "Repaid",
+          "Defaulted",
+          "Cancelled"
+        ]
+      }
+    },
+    {
+      "name": "isFunded",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "financingId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "name": "getInvestorSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "InvestorSecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "getSellerSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "InvestorSecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "financingSalt",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "localFaceValue",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "localRequested",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "localCreditScore",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 65535
+      }
+    },
+    {
+      "name": "localCreditSalt",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 16
+      }
+    }
+  ],
+  "contracts": [
+  ],
+  "ledger": [
+    {
+      "name": "totalFinancings",
+      "index": 0,
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "financings",
+      "index": 1,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "FinancingRecord",
+        "elements": [
+          {
+            "name": "financingId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "invoiceId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "sellerId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "investorId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "faceValueCommit",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "requestedCommit",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "fundedAmount",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "feeBps",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 65535
+            }
+          },
+          {
+            "name": "maturityDays",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 65535
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "FinancingStatus",
+              "elements": [
+                "Requested",
+                "Funded",
+                "Repaid",
+                "Defaulted",
+                "Cancelled"
+              ]
+            }
+          },
+          {
+            "name": "riskVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "fundedAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "repaidAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "financingExists",
+      "index": 2,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "invoiceFinancing",
+      "index": 3,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "usedFinancingNullifiers",
+      "index": 4,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "creditCommitments",
+      "index": 5,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "riskVerified",
+      "index": 6,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
+  ]
+}

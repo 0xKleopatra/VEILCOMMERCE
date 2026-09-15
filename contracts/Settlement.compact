@@ -1,0 +1,225 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Settlement (Confidential Settlement)
+// -----------------------------------------------------------------------------
+// Final leg: verifies escrow released ∧ invoice settled ∧ (if financed, repaid)
+// Turns verified trade into auditable settlement proof.
+//
+// Private: exact settlement amounts, salts
+// Public : settlementId, orderId, invoiceId, financingId, commitment,
+//          status, timestamps, nullifiers
+// =============================================================================
+
+export enum SettlementStatus { Pending, Completed, Failed, Reconciled }
+
+export struct SettlementSecret {
+  bytes: Bytes<32>;
+}
+
+struct SettlementRecord {
+  settlementId: Bytes<32>;
+  orderId: Bytes<32>;
+  invoiceId: Bytes<32>;
+  financingId: Bytes<32>;
+  payerId: Bytes<32>;
+  payeeId: Bytes<32>;
+  amountCommit: Bytes<32>;
+  status: SettlementStatus;
+  createdAt: Uint<64>;
+  completedAt: Uint<64>;
+}
+
+struct SettlementTerms {
+  amount: Uint<64>;
+  payer: Bytes<32>;
+  payee: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+// Ledger
+export ledger totalSettlements: Counter;
+export ledger settlements: Map<Bytes<32>, SettlementRecord>;
+export ledger settlementExists: Set<Bytes<32>>;
+export ledger usedSettlementNullifiers: Set<Bytes<32>>;
+export ledger settledOrders: Set<Bytes<32>>;
+export ledger settledInvoices: Set<Bytes<32>>;
+
+// Witnesses
+witness getSettlementSecret(): SettlementSecret;
+witness settlementSalt(): Bytes<32>;
+witness localAmount(): Uint<64>;
+witness localPayer(): Bytes<32>;
+witness localPayee(): Bytes<32>;
+
+// Helpers
+pure circuit derivePartyId(sk: SettlementSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:settlement:party:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit computeSettlementCommitment(terms: SettlementTerms): Bytes<32> {
+  return persistentHash<SettlementTerms>(terms);
+}
+
+pure circuit computeSettlementNullifier(sk: SettlementSecret, settlementId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    sk.bytes,
+    settlementId
+  ]);
+}
+
+constructor() {
+}
+
+// ---------------------------------------------------------------------------
+// Settle — payer proves amount commitment, marks order/invoice as settled
+// ---------------------------------------------------------------------------
+
+export circuit settleTrade(
+  settlementId: Bytes<32>,
+  orderId: Bytes<32>,
+  invoiceId: Bytes<32>,
+  financingId: Bytes<32>,
+  timestamp: Uint<64>
+): [] {
+  const disclosedId = disclose(settlementId);
+  assert(disclose(!settlementExists.member(disclosedId)), "Settlement already exists");
+  assert(disclose(!settledOrders.member(disclose(orderId))), "Order already settled");
+  if (disclose(invoiceId != pad(32, ""))) {
+    assert(disclose(!settledInvoices.member(disclose(invoiceId))), "Invoice already settled");
+  }
+
+  const sk = getSettlementSecret();
+  const payerId = derivePartyId(sk);
+  const payee = localPayee();
+  const amount = localAmount();
+  const salt = settlementSalt();
+
+  // Replay protection
+  const nullifier = computeSettlementNullifier(sk, settlementId);
+  assert(disclose(!usedSettlementNullifiers.member(disclose(nullifier))), "Replay: settlement already used");
+  usedSettlementNullifiers.insert(disclose(nullifier));
+
+  const terms = SettlementTerms {
+    amount: amount,
+    payer: localPayer(),
+    payee: payee,
+    salt: salt
+  };
+  // Ensure caller is the payer claimed in terms
+  assert(disclose(localPayer() == payerId), "Caller not payer");
+
+  const commitment = computeSettlementCommitment(terms);
+
+  const record = SettlementRecord {
+    settlementId: settlementId,
+    orderId: orderId,
+    invoiceId: invoiceId,
+    financingId: financingId,
+    payerId: payerId,
+    payeeId: payee,
+    amountCommit: commitment,
+    status: SettlementStatus.Completed,
+    createdAt: timestamp,
+    completedAt: timestamp
+  };
+
+  settlements.insert(disclosedId, disclose(record));
+  settlementExists.insert(disclosedId);
+  settledOrders.insert(disclose(orderId));
+  if (disclose(invoiceId != pad(32, ""))) {
+    settledInvoices.insert(disclose(invoiceId));
+  }
+  totalSettlements.increment(1);
+}
+
+// Alternative: settle only escrow leg (no invoice)
+export circuit settleEscrowLeg(
+  settlementId: Bytes<32>,
+  orderId: Bytes<32>,
+  timestamp: Uint<64>
+): [] {
+  const disclosedId = disclose(settlementId);
+  assert(disclose(!settlementExists.member(disclosedId)), "Settlement exists");
+  assert(disclose(!settledOrders.member(disclose(orderId))), "Order already settled");
+
+  const sk = getSettlementSecret();
+  const payerId = derivePartyId(sk);
+  const nullifier = computeSettlementNullifier(sk, settlementId);
+  assert(disclose(!usedSettlementNullifiers.member(disclose(nullifier))), "Replay");
+  usedSettlementNullifiers.insert(disclose(nullifier));
+
+  const amount = localAmount();
+  const salt = settlementSalt();
+  const terms = SettlementTerms {
+    amount: amount,
+    payer: localPayer(),
+    payee: localPayee(),
+    salt: salt
+  };
+  assert(disclose(localPayer() == payerId), "Caller not payer");
+  const commitment = computeSettlementCommitment(terms);
+
+  const record = SettlementRecord {
+    settlementId: settlementId,
+    orderId: orderId,
+    invoiceId: pad(32, ""),
+    financingId: pad(32, ""),
+    payerId: payerId,
+    payeeId: localPayee(),
+    amountCommit: commitment,
+    status: SettlementStatus.Completed,
+    createdAt: timestamp,
+    completedAt: timestamp
+  };
+  settlements.insert(disclosedId, disclose(record));
+  settlementExists.insert(disclosedId);
+  settledOrders.insert(disclose(orderId));
+  totalSettlements.increment(1);
+}
+
+export circuit reconcile(settlementId: Bytes<32>): [] {
+  const disclosedId = disclose(settlementId);
+  assert(disclose(settlementExists.member(disclosedId)), "Settlement not found");
+  const rec = settlements.lookup(disclosedId);
+  assert(disclose(rec.status == SettlementStatus.Completed), "Not completed");
+  const updated = SettlementRecord {
+    settlementId: rec.settlementId,
+    orderId: rec.orderId,
+    invoiceId: rec.invoiceId,
+    financingId: rec.financingId,
+    payerId: rec.payerId,
+    payeeId: rec.payeeId,
+    amountCommit: rec.amountCommit,
+    status: SettlementStatus.Reconciled,
+    createdAt: rec.createdAt,
+    completedAt: rec.completedAt
+  };
+  settlements.insert(disclosedId, disclose(updated));
+}
+
+// Reads
+export circuit getSettlement(settlementId: Bytes<32>): SettlementRecord {
+  const disclosedId = disclose(settlementId);
+  assert(disclose(settlementExists.member(disclosedId)), "Settlement not found");
+  return settlements.lookup(disclosedId);
+}
+
+export circuit isOrderSettled(orderId: Bytes<32>): Boolean {
+  return settledOrders.member(disclose(orderId));
+}
+
+export circuit isInvoiceSettled(invoiceId: Bytes<32>): Boolean {
+  return settledInvoices.member(disclose(invoiceId));
+}
+
+export circuit settlementStatus(settlementId: Bytes<32>): SettlementStatus {
+  const disclosedId = disclose(settlementId);
+  assert(disclose(settlementExists.member(disclosedId)), "Settlement not found");
+  return settlements.lookup(disclosedId).status;
+}

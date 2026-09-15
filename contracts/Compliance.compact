@@ -1,0 +1,265 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Compliance (Programmable ZK Compliance)
+// -----------------------------------------------------------------------------
+// DPO2U + ZK-Judge patterns → prove requirements satisfied without full disclosure.
+//
+// Instead of "upload everything", prove:
+//   business credential valid ∧ authorized ∧ jurisdiction permitted ∧
+//   certification present ∧ threshold met ∧ docs valid
+//
+// Private: credential preimages, private attributes, salts
+// Public : compliance commitment, verified flags, jurisdiction, nullifiers,
+//          selective-disclosure grants
+// =============================================================================
+
+export enum ComplianceStatus { Pending, Verified, Rejected, Expired }
+export enum DisclosureLevel { Private, Selective, Auditable, PublicProof }
+
+export struct ComplianceSecret {
+  bytes: Bytes<32>;
+}
+
+struct ComplianceRecord {
+  subjectId: Bytes<32>;
+  commitment: Bytes<32>;
+  status: ComplianceStatus;
+  jurisdiction: Field;
+  verifiedAt: Uint<64>;
+  expiresAt: Uint<128>;
+  disclosureLevel: DisclosureLevel;
+}
+
+struct ComplianceTerms {
+  credentialHash: Bytes<32>;
+  jurisdiction: Field;
+  certificationHash: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+struct AttestationInput {
+  privateAttr1: Uint<32>;
+  privateAttr2: Uint<32>;
+  privateAttr3: Uint<32>;
+}
+
+// Ledger
+export ledger totalComplianceChecks: Counter;
+export ledger complianceRecords: Map<Bytes<32>, ComplianceRecord>;
+export ledger complianceVerified: Set<Bytes<32>>;
+export ledger complianceCommitments: Map<Bytes<32>, Bytes<32>>;
+export ledger auditorGrants: Map<Bytes<32>, Set<Bytes<32>>>;
+export ledger usedComplianceNullifiers: Set<Bytes<32>>;
+export ledger jurisdictionPolicy: Map<Field, Boolean>;
+export ledger credentialRevoked: Set<Bytes<32>>;
+
+// Sealed admin
+sealed ledger complianceAdmin: Bytes<32>;
+
+// Witnesses
+witness getComplianceSecret(): ComplianceSecret;
+witness getAdminSecret(): ComplianceSecret;
+witness complianceSalt(): Bytes<32>;
+witness credentialHashWitness(): Bytes<32>;
+witness certificationHashWitness(): Bytes<32>;
+witness privateAttr1(): Uint<32>;
+witness privateAttr2(): Uint<32>;
+witness privateAttr3(): Uint<32>;
+
+// Helpers
+pure circuit deriveSubjectId(sk: ComplianceSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:compliance:subject:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit deriveAdminId(sk: ComplianceSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:compliance:admin:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit computeComplianceCommitment(terms: ComplianceTerms): Bytes<32> {
+  return persistentHash<ComplianceTerms>(terms);
+}
+
+pure circuit computeDisclosureNullifier(sk: ComplianceSecret, subjectId: Bytes<32>, auditorId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    sk.bytes,
+    subjectId,
+    auditorId
+  ]);
+}
+
+constructor() {
+  const adminSecret = getAdminSecret();
+  complianceAdmin = disclose(deriveAdminId(adminSecret));
+  jurisdictionPolicy.insert(disclose("NG" as Field), disclose(true));
+  jurisdictionPolicy.insert(disclose("CN" as Field), disclose(true));
+  jurisdictionPolicy.insert(disclose("US" as Field), disclose(true));
+  jurisdictionPolicy.insert(disclose("GB" as Field), disclose(true));
+}
+
+// ---------------------------------------------------------------------------
+// Attest compliance — subject proves they satisfy transaction requirements
+// ---------------------------------------------------------------------------
+
+export circuit attestCompliance(
+  jurisdiction: Field,
+  validityDays: Uint<64>,
+  timestamp: Uint<64>
+): [] {
+  const sk = getComplianceSecret();
+  const subjectId = deriveSubjectId(sk);
+  const credHash = credentialHashWitness();
+  const certHash = certificationHashWitness();
+  const salt = complianceSalt();
+
+  assert(disclose(!credentialRevoked.member(disclose(credHash))), "Credential revoked");
+  assert(disclose(jurisdictionPolicy.member(disclose(jurisdiction))), "Jurisdiction not in policy");
+  assert(disclose(jurisdictionPolicy.lookup(disclose(jurisdiction))), "Jurisdiction not allowed");
+
+  const terms = ComplianceTerms {
+    credentialHash: credHash,
+    jurisdiction: jurisdiction,
+    certificationHash: certHash,
+    salt: salt
+  };
+  const commitment = computeComplianceCommitment(terms);
+  const disclosedId = disclose(subjectId);
+
+  const record = ComplianceRecord {
+    subjectId: subjectId,
+    commitment: commitment,
+    status: ComplianceStatus.Verified,
+    jurisdiction: jurisdiction,
+    verifiedAt: timestamp,
+    expiresAt: timestamp + validityDays * (86400 as Uint<64>),
+    disclosureLevel: DisclosureLevel.Private
+  };
+
+  complianceRecords.insert(disclosedId, disclose(record));
+  complianceCommitments.insert(disclosedId, disclose(commitment));
+  complianceVerified.insert(disclosedId);
+  totalComplianceChecks.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// ZK-Judge style threshold evaluation — private attrs vs public threshold
+// ---------------------------------------------------------------------------
+
+export circuit evaluateCompliance(
+  subjectId: Bytes<32>,
+  threshold: Uint<32>
+): [] {
+  const disclosedId = disclose(subjectId);
+  assert(disclose(complianceRecords.member(disclosedId)), "No compliance record");
+  assert(disclose(complianceVerified.member(disclosedId)), "Not verified");
+  const rec = complianceRecords.lookup(disclosedId);
+  assert(disclose(rec.status == ComplianceStatus.Verified), "Not verified status");
+
+  const weight1: Uint<32> = 10;
+  const weight2: Uint<32> = 5;
+  const weight3: Uint<32> = 2;
+
+  const a1 = privateAttr1();
+  const a2 = privateAttr2();
+  const a3 = privateAttr3();
+
+  const score = (a1 * weight1) + (a2 * weight2) + (a3 * weight3);
+  assert(disclose(score >= threshold), "ZK compliance: private inputs do not meet threshold");
+}
+
+// Simplified boolean version for financing gate
+circuit passesThreshold(threshold: Uint<32>): Boolean {
+  const w1: Uint<32> = 10;
+  const w2: Uint<32> = 5;
+  const w3: Uint<32> = 2;
+  const a1 = privateAttr1();
+  const a2 = privateAttr2();
+  const a3 = privateAttr3();
+  const score = (a1 * w1) + (a2 * w2) + (a3 * w3);
+  return score >= threshold;
+}
+
+// ---------------------------------------------------------------------------
+// Selective disclosure — subject grants auditor specific view
+// ---------------------------------------------------------------------------
+
+export circuit grantDisclosure(
+  auditorId: Bytes<32>,
+  level: DisclosureLevel
+): [] {
+  const sk = getComplianceSecret();
+  const subjectId = deriveSubjectId(sk);
+  const disclosedId = disclose(subjectId);
+  assert(disclose(complianceRecords.member(disclosedId)), "No record");
+  const rec = complianceRecords.lookup(disclosedId);
+  const updated = ComplianceRecord {
+    subjectId: rec.subjectId,
+    commitment: rec.commitment,
+    status: rec.status,
+    jurisdiction: rec.jurisdiction,
+    verifiedAt: rec.verifiedAt,
+    expiresAt: rec.expiresAt,
+    disclosureLevel: level
+  };
+  complianceRecords.insert(disclosedId, disclose(updated));
+
+  const nullifier = computeDisclosureNullifier(sk, subjectId, auditorId);
+  assert(disclose(!usedComplianceNullifiers.member(disclose(nullifier))), "Disclosure already granted");
+  usedComplianceNullifiers.insert(disclose(nullifier));
+}
+
+export circuit revokeCompliance(subjectId: Bytes<32>): [] {
+  const adminSecret = getAdminSecret();
+  assert(disclose(deriveAdminId(adminSecret) == complianceAdmin), "Only admin");
+  const disclosedId = disclose(subjectId);
+  assert(disclose(complianceRecords.member(disclosedId)), "No record");
+  const rec = complianceRecords.lookup(disclosedId);
+  const updated = ComplianceRecord {
+    subjectId: rec.subjectId,
+    commitment: rec.commitment,
+    status: ComplianceStatus.Rejected,
+    jurisdiction: rec.jurisdiction,
+    verifiedAt: rec.verifiedAt,
+    expiresAt: rec.expiresAt,
+    disclosureLevel: rec.disclosureLevel
+  };
+  complianceRecords.insert(disclosedId, disclose(updated));
+  // remove verified flag
+}
+
+export circuit revokeCredential(credHash: Bytes<32>): [] {
+  const adminSecret = getAdminSecret();
+  assert(disclose(deriveAdminId(adminSecret) == complianceAdmin), "Only admin");
+  credentialRevoked.insert(disclose(credHash));
+}
+
+export circuit setJurisdictionPolicy(jurisdiction: Field, allowed: Boolean): [] {
+  const adminSecret = getAdminSecret();
+  assert(disclose(deriveAdminId(adminSecret) == complianceAdmin), "Only admin");
+  jurisdictionPolicy.insert(disclose(jurisdiction), disclose(allowed));
+}
+
+// Reads
+export circuit isVerified(subjectId: Bytes<32>): Boolean {
+  return complianceVerified.member(disclose(subjectId));
+}
+
+export circuit getRecord(subjectId: Bytes<32>): ComplianceRecord {
+  const disclosedId = disclose(subjectId);
+  assert(disclose(complianceRecords.member(disclosedId)), "No record");
+  return complianceRecords.lookup(disclosedId);
+}
+
+export circuit getCommitment(subjectId: Bytes<32>): Bytes<32> {
+  const disclosedId = disclose(subjectId);
+  assert(disclose(complianceRecords.member(disclosedId)), "No record");
+  return complianceCommitments.lookup(disclosedId);
+}

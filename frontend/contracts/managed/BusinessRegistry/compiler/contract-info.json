@@ -1,0 +1,433 @@
+{
+  "compiler-version": "0.31.1",
+  "language-version": "0.23.0",
+  "runtime-version": "0.16.0",
+  "circuits": [
+    {
+      "name": "registerBusiness",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "jurisdiction",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "category",
+          "type": {
+            "type-name": "Enum",
+            "name": "BusinessCategory",
+            "elements": [
+              "Retail",
+              "Wholesale",
+              "Manufacturing",
+              "Logistics",
+              "Finance",
+              "Other"
+            ]
+          }
+        },
+        {
+          "name": "credentialHash",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "verifyBusiness",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Enum",
+        "name": "VerificationStatus",
+        "elements": [
+          "Unverified",
+          "Verified",
+          "Revoked",
+          "Suspended"
+        ]
+      }
+    },
+    {
+      "name": "isBusinessVerified",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "proveBusinessEligible",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "requiredJurisdiction",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "proveAuthorization",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "actionHash",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "revokeBusiness",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setJurisdictionAllowed",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "jurisdiction",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "allowed",
+          "type": {
+            "type-name": "Boolean"
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "getBusinessCommitment",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "exists",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "businessId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "name": "getBusinessSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "BusinessSecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "getAdminSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "BusinessSecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "businessSalt",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
+  ],
+  "contracts": [
+  ],
+  "ledger": [
+    {
+      "name": "totalBusinesses",
+      "index": 0,
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "businessRegistry",
+      "index": 1,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "BusinessCommit",
+        "elements": [
+          {
+            "name": "commitment",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "ownerHash",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "jurisdiction",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "category",
+            "type": {
+              "type-name": "Enum",
+              "name": "BusinessCategory",
+              "elements": [
+                "Retail",
+                "Wholesale",
+                "Manufacturing",
+                "Logistics",
+                "Finance",
+                "Other"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "VerificationStatus",
+              "elements": [
+                "Unverified",
+                "Verified",
+                "Revoked",
+                "Suspended"
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "credentialHash",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "businessStatus",
+      "index": 2,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Enum",
+        "name": "VerificationStatus",
+        "elements": [
+          "Unverified",
+          "Verified",
+          "Revoked",
+          "Suspended"
+        ]
+      }
+    },
+    {
+      "name": "revokedBusinesses",
+      "index": 3,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "usedNullifiers",
+      "index": 4,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "jurisdictionAllowed",
+      "index": 5,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "adminKey",
+      "index": 6,
+      "exported": false,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "registryInitialized",
+      "index": 7,
+      "exported": false,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Boolean"
+      }
+    }
+  ]
+}

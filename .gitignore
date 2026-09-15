@@ -1,0 +1,28 @@
+# Dependencies
+frontend/node_modules/
+frontend/dist/
+
+# ZK proof artifacts (regenerable from compact sources)
+frontend/public/contract/*/keys/
+frontend/public/contract/*/zkir/
+frontend/contracts/managed/*/keys/
+frontend/contracts/managed/*/zkir/
+
+# Build output
+frontend/public/contract/managed/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Wallet
+.veil-wallet-seed
+
+# Wave docs
+wave 2 implementation.md

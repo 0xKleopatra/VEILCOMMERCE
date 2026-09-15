@@ -1,0 +1,254 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — BusinessRegistry
+// -----------------------------------------------------------------------------
+// Private business identity as infrastructure for commerce (Credence pattern).
+//
+// Private: legal identity, registration credentials, authorized reps, salt
+// Public : commitment, businessId, jurisdiction, category, verification status,
+//          revocation + nullifier (replay protection)
+//
+// A business proves:   "I am verified ∧ authorized ∧ jurisdiction eligible
+//                       ∧ credential valid ∧ not revoked"  without revealing
+//                       full corporate file.
+// =============================================================================
+
+export enum VerificationStatus { Unverified, Verified, Revoked, Suspended }
+export enum BusinessCategory { Retail, Wholesale, Manufacturing, Logistics, Finance, Other }
+
+export struct BusinessSecret {
+  bytes: Bytes<32>;
+}
+
+struct BusinessCommit {
+  commitment: Bytes<32>;
+  ownerHash: Bytes<32>;
+  jurisdiction: Bytes<32>;
+  category: BusinessCategory;
+  status: VerificationStatus;
+  timestamp: Uint<64>;
+  credentialHash: Bytes<32>;
+}
+
+struct BusinessTerms {
+  ownerHash: Bytes<32>;
+  jurisdiction: Bytes<32>;
+  credentialHash: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+// Ledger — public on-chain (minimum necessary)
+export ledger totalBusinesses: Counter;
+export ledger businessRegistry: Map<Bytes<32>, BusinessCommit>;
+export ledger businessStatus: Map<Bytes<32>, VerificationStatus>;
+export ledger revokedBusinesses: Set<Bytes<32>>;
+export ledger usedNullifiers: Set<Bytes<32>>;
+export ledger jurisdictionAllowed: Map<Bytes<32>, Boolean>;
+
+// Sealed admin — witness-derived, not ownPublicKey()
+sealed ledger adminKey: Bytes<32>;
+sealed ledger registryInitialized: Boolean;
+
+// Witnesses — private, never touch chain
+witness getBusinessSecret(): BusinessSecret;
+witness getAdminSecret(): BusinessSecret;
+witness businessSalt(): Bytes<32>;
+witness credentialPreimage(): Bytes<32>;
+
+// ---------------------------------------------------------------------------
+// Helpers — domain-separated key derivation (prevents cross-domain linkability)
+// ---------------------------------------------------------------------------
+
+pure circuit deriveBusinessId(sk: BusinessSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:business:id:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit deriveOwnerHash(sk: BusinessSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:business:owner:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit deriveAdminId(sk: BusinessSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:registry:admin:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit computeBusinessCommitment(
+  ownerHash: Bytes<32>,
+  jurisdiction: Bytes<32>,
+  credentialHash: Bytes<32>,
+  salt: Bytes<32>
+): Bytes<32> {
+  return persistentHash<BusinessTerms>(
+    BusinessTerms {
+      ownerHash: ownerHash,
+      jurisdiction: jurisdiction,
+      credentialHash: credentialHash,
+      salt: salt
+    }
+  );
+}
+
+pure circuit computeNullifier(sk: BusinessSecret, action: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    sk.bytes,
+    action
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Constructor
+// ---------------------------------------------------------------------------
+
+constructor() {
+  const adminSecret = getAdminSecret();
+  const adminId = deriveAdminId(adminSecret);
+  adminKey = disclose(adminId);
+  registryInitialized = disclose(true);
+  jurisdictionAllowed.insert(disclose(pad(32, "NG")), disclose(true));
+  jurisdictionAllowed.insert(disclose(pad(32, "CN")), disclose(true));
+  jurisdictionAllowed.insert(disclose(pad(32, "US")), disclose(true));
+  jurisdictionAllowed.insert(disclose(pad(32, "GB")), disclose(true));
+  jurisdictionAllowed.insert(disclose(pad(32, "DE")), disclose(true));
+}
+
+// ---------------------------------------------------------------------------
+// Registration — private data stays in witness, only commitment goes on-chain
+// ---------------------------------------------------------------------------
+
+export circuit registerBusiness(
+  jurisdiction: Bytes<32>,
+  category: BusinessCategory,
+  credentialHash: Bytes<32>,
+  timestamp: Uint<64>
+): [] {
+  assert(disclose(registryInitialized), "Registry not initialized");
+
+  const sk = getBusinessSecret();
+  const businessId = deriveBusinessId(sk);
+  const ownerHash = deriveOwnerHash(sk);
+  const salt = businessSalt();
+
+  const disclosedId = disclose(businessId);
+  assert(disclose(!businessRegistry.member(disclosedId)), "Business already registered");
+  assert(disclose(!revokedBusinesses.member(disclosedId)), "Business revoked");
+
+  const commitment = computeBusinessCommitment(ownerHash, jurisdiction, credentialHash, salt);
+
+  const record = BusinessCommit {
+    commitment: commitment,
+    ownerHash: ownerHash,
+    jurisdiction: jurisdiction,
+    category: category,
+    status: VerificationStatus.Verified,
+    timestamp: timestamp,
+    credentialHash: credentialHash
+  };
+
+  businessRegistry.insert(disclosedId, disclose(record));
+  businessStatus.insert(disclosedId, disclose(VerificationStatus.Verified));
+  totalBusinesses.increment(1);
+}
+
+// ---------------------------------------------------------------------------
+// Verification — selective disclosure: proves facts without revealing preimage
+// ---------------------------------------------------------------------------
+
+export circuit verifyBusiness(businessId: Bytes<32>): VerificationStatus {
+  const disclosedId = disclose(businessId);
+  assert(disclose(businessRegistry.member(disclosedId)), "Business not found");
+  assert(disclose(!revokedBusinesses.member(disclosedId)), "Business revoked");
+  return businessStatus.lookup(disclosedId);
+}
+
+export circuit isBusinessVerified(businessId: Bytes<32>): Boolean {
+  const disclosedId = disclose(businessId);
+  if (!businessRegistry.member(disclosedId)) { return false; }
+  if (revokedBusinesses.member(disclosedId)) { return false; }
+  const st = businessStatus.lookup(disclosedId);
+  return st == VerificationStatus.Verified;
+}
+
+export circuit proveBusinessEligible(
+  businessId: Bytes<32>,
+  requiredJurisdiction: Bytes<32>
+): Boolean {
+  const disclosedId = disclose(businessId);
+  assert(disclose(businessRegistry.member(disclosedId)), "Business not found");
+  assert(disclose(!revokedBusinesses.member(disclosedId)), "Business revoked");
+  const rec = businessRegistry.lookup(disclosedId);
+  assert(disclose(rec.status == VerificationStatus.Verified), "Not verified");
+  if (disclose(requiredJurisdiction == pad(32, ""))) {
+    return true;
+  }
+  return disclose(rec.jurisdiction == requiredJurisdiction);
+}
+
+// ---------------------------------------------------------------------------
+// Nullifier-gated operations (replay protection)
+// ---------------------------------------------------------------------------
+
+export circuit proveAuthorization(
+  businessId: Bytes<32>,
+  actionHash: Bytes<32>
+): [] {
+  const disclosedId = disclose(businessId);
+  assert(disclose(businessRegistry.member(disclosedId)), "Business not found");
+  assert(disclose(!revokedBusinesses.member(disclosedId)), "Business revoked");
+  const rec = businessRegistry.lookup(disclosedId);
+  assert(disclose(rec.status == VerificationStatus.Verified), "Not verified");
+
+  const sk = getBusinessSecret();
+  const derivedId = deriveBusinessId(sk);
+  assert(disclose(derivedId == businessId), "Not authorized for this business");
+
+  const nullifier = computeNullifier(sk, actionHash);
+  const disclosedNull = disclose(nullifier);
+  assert(disclose(!usedNullifiers.member(disclosedNull)), "Replay: nullifier already used");
+  usedNullifiers.insert(disclosedNull);
+}
+
+// ---------------------------------------------------------------------------
+// Admin — revocation / suspension
+// ---------------------------------------------------------------------------
+
+export circuit revokeBusiness(businessId: Bytes<32>): [] {
+  const adminSecret = getAdminSecret();
+  const adminId = deriveAdminId(adminSecret);
+  assert(disclose(adminId == adminKey), "Only admin can revoke");
+  const disclosedId = disclose(businessId);
+  assert(disclose(businessRegistry.member(disclosedId)), "Business not found");
+  revokedBusinesses.insert(disclosedId);
+  businessStatus.insert(disclosedId, disclose(VerificationStatus.Revoked));
+}
+
+export circuit setJurisdictionAllowed(jurisdiction: Bytes<32>, allowed: Boolean): [] {
+  const adminSecret = getAdminSecret();
+  const adminId = deriveAdminId(adminSecret);
+  assert(disclose(adminId == adminKey), "Only admin");
+  jurisdictionAllowed.insert(disclose(jurisdiction), disclose(allowed));
+}
+
+// ---------------------------------------------------------------------------
+// Reads
+// ---------------------------------------------------------------------------
+
+export circuit getBusinessCommitment(businessId: Bytes<32>): Bytes<32> {
+  const disclosedId = disclose(businessId);
+  assert(disclose(businessRegistry.member(disclosedId)), "Business not found");
+  return businessRegistry.lookup(disclosedId).commitment;
+}
+
+export circuit exists(businessId: Bytes<32>): Boolean {
+  return businessRegistry.member(disclose(businessId));
+}

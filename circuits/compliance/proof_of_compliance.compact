@@ -1,0 +1,130 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Proof of Compliance Circuit
+// -----------------------------------------------------------------------------
+// Proves: private credentials satisfy transaction requirements
+// without revealing the credentials themselves.
+//
+// Requirements checked:
+//   - credential_valid: credential not revoked/expired
+//   - authorized_participant: business is authorized
+//   - jurisdiction_permitted: jurisdiction in allowed list
+//   - certification_valid: required certifications present
+//   - transaction_threshold: transaction value within limits
+//   - documentation_complete: required docs provided
+//
+// This uses a ZK-Judge style weighted scoring model.
+// =============================================================================
+
+export struct ComplianceProofInput {
+  // Private attributes (witnesses)
+  credential_status: Uint<8>;        // 0=valid, 1=revoked, 2=expired
+  authorization_level: Uint<8>;      // 0=unauthorized, 1=basic, 2=full
+  jurisdiction_code: Bytes<32>;      // jurisdiction of the business
+  certification_flags: Uint<16>;     // bitmask of certifications held
+  transaction_value: Uint<64>;       // value of the transaction
+  doc_completeness: Uint<8>;         // 0=incomplete, 1=complete
+  
+  // Public requirements
+  required_jurisdiction: Bytes<32>;
+  required_certifications: Uint<16>;
+  max_transaction_value: Uint<64>;
+  min_auth_level: Uint<8>;
+}
+
+export struct ComplianceProofOutput {
+  compliant: Boolean;
+  compliance_commitment: Bytes<32>;
+  score: Uint<32>;
+}
+
+struct ComplianceData {
+  credential_status: Uint<8>;
+  authorization_level: Uint<8>;
+  jurisdiction_code: Bytes<32>;
+  certification_flags: Uint<16>;
+  transaction_value: Uint<64>;
+  doc_completeness: Uint<8>;
+}
+
+pure circuit commitCompliance(data: ComplianceData): Bytes<32> {
+  return persistentHash<ComplianceData>(data);
+}
+
+// Weighted compliance scoring (ZK-Judge pattern)
+pure circuit computeComplianceScore(input: ComplianceProofInput): Uint<32> {
+  let score: Uint<32> = 0;
+  
+  // Credential validity (weight: 30)
+  if (input.credential_status == 0) {
+    score = score + 30;
+  }
+  
+  // Authorization (weight: 20)
+  if (input.authorization_level >= input.min_auth_level) {
+    score = score + 20;
+  }
+  
+  // Jurisdiction (weight: 15)
+  if (input.jurisdiction_code == input.required_jurisdiction) {
+    score = score + 15;
+  }
+  
+  // Certifications (weight: 15)
+  const cert_match = (input.certification_flags & input.required_certifications) == input.required_certifications;
+  if (cert_match) {
+    score = score + 15;
+  }
+  
+  // Transaction threshold (weight: 10)
+  if (input.transaction_value <= input.max_transaction_value) {
+    score = score + 10;
+  }
+  
+  // Documentation (weight: 10)
+  if (input.doc_completeness == 1) {
+    score = score + 10;
+  }
+  
+  return score;
+}
+
+export circuit proveCompliance(input: ComplianceProofInput): ComplianceProofOutput {
+  const score = computeComplianceScore(input);
+  const compliant = score >= 70; // 70% threshold
+  const commitment = commitCompliance(ComplianceData {
+    credential_status: input.credential_status,
+    authorization_level: input.authorization_level,
+    jurisdiction_code: input.jurisdiction_code,
+    certification_flags: input.certification_flags,
+    transaction_value: input.transaction_value,
+    doc_completeness: input.doc_completeness
+  });
+  
+  return ComplianceProofOutput {
+    compliant: compliant,
+    compliance_commitment: commitment,
+    score: score
+  };
+}
+
+export circuit verifyComplianceProof(
+  compliance_commitment: Bytes<32>,
+  input: ComplianceProofInput
+): Boolean {
+  const recomputed = commitCompliance(ComplianceData {
+    credential_status: input.credential_status,
+    authorization_level: input.authorization_level,
+    jurisdiction_code: input.jurisdiction_code,
+    certification_flags: input.certification_flags,
+    transaction_value: input.transaction_value,
+    doc_completeness: input.doc_completeness
+  });
+  const matches = recomputed == compliance_commitment;
+  const score = computeComplianceScore(input);
+  const compliant = score >= 70;
+  return matches && compliant;
+}

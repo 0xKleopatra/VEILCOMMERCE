@@ -1,0 +1,590 @@
+{
+  "compiler-version": "0.31.1",
+  "language-version": "0.23.0",
+  "runtime-version": "0.16.0",
+  "circuits": [
+    {
+      "name": "createPurchaseOrder",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "sellerId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "currency",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "confirmOrder",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markBuyerVerified",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markSellerVerified",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markFundsVerified",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markFunded",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markShipped",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markDelivered",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "markSettled",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "cancelOrder",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "getOrder",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Struct",
+        "name": "OrderRecord",
+        "elements": [
+          {
+            "name": "orderId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "buyerId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "sellerId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "amountCommit",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "OrderStatus",
+              "elements": [
+                "Draft",
+                "AwaitingSeller",
+                "Confirmed",
+                "Funded",
+                "Shipped",
+                "Delivered",
+                "Settled",
+                "Cancelled",
+                "Disputed"
+              ]
+            }
+          },
+          {
+            "name": "buyerVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "sellerVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "fundsVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "updatedAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "termsCommitment",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderStatus",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "orderId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Enum",
+        "name": "OrderStatus",
+        "elements": [
+          "Draft",
+          "AwaitingSeller",
+          "Confirmed",
+          "Funded",
+          "Shipped",
+          "Delivered",
+          "Settled",
+          "Cancelled",
+          "Disputed"
+        ]
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "name": "getPartySecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "PartySecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderSalt",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "localQuantity",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "localUnitPrice",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "localTotalAmount",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "localDestinationHash",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
+  ],
+  "contracts": [
+  ],
+  "ledger": [
+    {
+      "name": "totalOrders",
+      "index": 0,
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "orders",
+      "index": 1,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "OrderRecord",
+        "elements": [
+          {
+            "name": "orderId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "buyerId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "sellerId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "amountCommit",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "OrderStatus",
+              "elements": [
+                "Draft",
+                "AwaitingSeller",
+                "Confirmed",
+                "Funded",
+                "Shipped",
+                "Delivered",
+                "Settled",
+                "Cancelled",
+                "Disputed"
+              ]
+            }
+          },
+          {
+            "name": "buyerVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "sellerVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "fundsVerified",
+            "type": {
+              "type-name": "Boolean"
+            }
+          },
+          {
+            "name": "createdAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "updatedAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "termsCommitment",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderExists",
+      "index": 2,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "usedOrderNullifiers",
+      "index": 3,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
+  ]
+}

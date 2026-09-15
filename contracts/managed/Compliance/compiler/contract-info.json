@@ -1,0 +1,535 @@
+{
+  "compiler-version": "0.31.1",
+  "language-version": "0.23.0",
+  "runtime-version": "0.16.0",
+  "circuits": [
+    {
+      "name": "attestCompliance",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "jurisdiction",
+          "type": {
+            "type-name": "Field"
+          }
+        },
+        {
+          "name": "validityDays",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "evaluateCompliance",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "subjectId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "threshold",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 4294967295
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "grantDisclosure",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "auditorId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        },
+        {
+          "name": "level",
+          "type": {
+            "type-name": "Enum",
+            "name": "DisclosureLevel",
+            "elements": [
+              "Private",
+              "Selective",
+              "Auditable",
+              "PublicProof"
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "revokeCompliance",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "subjectId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "revokeCredential",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "credHash",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setJurisdictionPolicy",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "jurisdiction",
+          "type": {
+            "type-name": "Field"
+          }
+        },
+        {
+          "name": "allowed",
+          "type": {
+            "type-name": "Boolean"
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "isVerified",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "subjectId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "getRecord",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "subjectId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Struct",
+        "name": "ComplianceRecord",
+        "elements": [
+          {
+            "name": "subjectId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "ComplianceStatus",
+              "elements": [
+                "Pending",
+                "Verified",
+                "Rejected",
+                "Expired"
+              ]
+            }
+          },
+          {
+            "name": "jurisdiction",
+            "type": {
+              "type-name": "Field"
+            }
+          },
+          {
+            "name": "verifiedAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "expiresAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 340282366920938463463374607431768211455
+            }
+          },
+          {
+            "name": "disclosureLevel",
+            "type": {
+              "type-name": "Enum",
+              "name": "DisclosureLevel",
+              "elements": [
+                "Private",
+                "Selective",
+                "Auditable",
+                "PublicProof"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "getCommitment",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "subjectId",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "name": "getComplianceSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "ComplianceSecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "getAdminSecret",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "ComplianceSecret",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "complianceSalt",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "credentialHashWitness",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "certificationHashWitness",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "privateAttr1",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 4294967295
+      }
+    },
+    {
+      "name": "privateAttr2",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 4294967295
+      }
+    },
+    {
+      "name": "privateAttr3",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 4294967295
+      }
+    }
+  ],
+  "contracts": [
+  ],
+  "ledger": [
+    {
+      "name": "totalComplianceChecks",
+      "index": 0,
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "complianceRecords",
+      "index": 1,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "ComplianceRecord",
+        "elements": [
+          {
+            "name": "subjectId",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "type-name": "Enum",
+              "name": "ComplianceStatus",
+              "elements": [
+                "Pending",
+                "Verified",
+                "Rejected",
+                "Expired"
+              ]
+            }
+          },
+          {
+            "name": "jurisdiction",
+            "type": {
+              "type-name": "Field"
+            }
+          },
+          {
+            "name": "verifiedAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 18446744073709551615
+            }
+          },
+          {
+            "name": "expiresAt",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 340282366920938463463374607431768211455
+            }
+          },
+          {
+            "name": "disclosureLevel",
+            "type": {
+              "type-name": "Enum",
+              "name": "DisclosureLevel",
+              "elements": [
+                "Private",
+                "Selective",
+                "Auditable",
+                "PublicProof"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "complianceVerified",
+      "index": 2,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "complianceCommitments",
+      "index": 3,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "auditorGrants",
+      "index": 4,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Set",
+        "type": {
+          "type-name": "Bytes",
+          "length": 32
+        }
+      }
+    },
+    {
+      "name": "usedComplianceNullifiers",
+      "index": 5,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "jurisdictionPolicy",
+      "index": 6,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Field"
+      },
+      "value": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "credentialRevoked",
+      "index": 7,
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "complianceAdmin",
+      "index": 8,
+      "exported": false,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    }
+  ]
+}

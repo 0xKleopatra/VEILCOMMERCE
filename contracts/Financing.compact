@@ -1,0 +1,319 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Financing (Private Invoice Financing / Trade Finance)
+// -----------------------------------------------------------------------------
+// Kredz + RWA patterns → verified private receivable as financeable asset.
+// =============================================================================
+
+export enum FinancingStatus { Requested, Funded, Repaid, Defaulted, Cancelled }
+
+export struct InvestorSecret {
+  bytes: Bytes<32>;
+}
+
+struct FinancingRecord {
+  financingId: Bytes<32>;
+  invoiceId: Bytes<32>;
+  sellerId: Bytes<32>;
+  investorId: Bytes<32>;
+  faceValueCommit: Bytes<32>;
+  requestedCommit: Bytes<32>;
+  fundedAmount: Uint<64>;
+  feeBps: Uint<16>;
+  maturityDays: Uint<16>;
+  status: FinancingStatus;
+  riskVerified: Boolean;
+  createdAt: Uint<64>;
+  fundedAt: Uint<64>;
+  repaidAt: Uint<64>;
+}
+
+struct CreditScoreData {
+  score: Uint<16>;
+  salt: Bytes<16>;
+}
+
+struct AmountData {
+  amount: Uint<64>;
+  salt: Bytes<32>;
+}
+
+// Ledger
+export ledger totalFinancings: Counter;
+export ledger financings: Map<Bytes<32>, FinancingRecord>;
+export ledger financingExists: Set<Bytes<32>>;
+export ledger invoiceFinancing: Map<Bytes<32>, Bytes<32>>;
+export ledger usedFinancingNullifiers: Set<Bytes<32>>;
+export ledger creditCommitments: Map<Bytes<32>, Bytes<32>>;
+export ledger riskVerified: Set<Bytes<32>>;
+
+// Witnesses
+witness getInvestorSecret(): InvestorSecret;
+witness getSellerSecret(): InvestorSecret;
+witness financingSalt(): Bytes<32>;
+witness localFaceValue(): Uint<64>;
+witness localRequested(): Uint<64>;
+witness localCreditScore(): Uint<16>;
+witness localCreditSalt(): Bytes<16>;
+
+// Helpers
+pure circuit derivePartyId(sk: InvestorSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:financing:party:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit deriveInvestorId(sk: InvestorSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:investor:id:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit commitAmount(amount: Uint<64>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<AmountData>(AmountData { amount: amount, salt: salt });
+}
+
+pure circuit commitCreditScore(data: CreditScoreData): Bytes<32> {
+  return persistentHash<CreditScoreData>(data);
+}
+
+pure circuit computeFinancingNullifier(sk: InvestorSecret, financingId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    sk.bytes,
+    financingId
+  ]);
+}
+
+constructor() {
+}
+
+// Commit credit score (seller privately commits their credit score hash)
+export circuit commitCreditScore(sellerId: Bytes<32>): [] {
+  const secret = getSellerSecret();
+  const derivedId = derivePartyId(secret);
+  assert(disclose(derivedId == sellerId), "Not seller");
+  const score = localCreditScore();
+  const salt = localCreditSalt();
+  const data = CreditScoreData { score: score, salt: salt };
+  const commitment = commitCreditScore(data);
+  creditCommitments.insert(disclose(sellerId), disclose(commitment));
+}
+
+// Request financing against a verified invoice
+export circuit requestFinancing(
+  financingId: Bytes<32>,
+  invoiceId: Bytes<32>,
+  maturityDays: Uint<16>,
+  feeBps: Uint<16>,
+  timestamp: Uint<64>
+): [] {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(!financingExists.member(disclosedFid)), "Financing already exists");
+  assert(disclose(!invoiceFinancing.member(disclose(invoiceId))), "Invoice already financed");
+
+  const sellerSecret = getSellerSecret();
+  const sellerId = derivePartyId(sellerSecret);
+
+  const face = localFaceValue();
+  const requested = localRequested();
+  const salt = financingSalt();
+
+  assert(disclose(requested <= face), "Requested > face value");
+  assert(disclose(requested > (0 as Uint<64>)), "Requested must be > 0");
+
+  const faceCommit = commitAmount(face, salt);
+  const requestedCommit = commitAmount(requested, salt);
+
+  const rec = FinancingRecord {
+    financingId: financingId,
+    invoiceId: invoiceId,
+    sellerId: sellerId,
+    investorId: pad(32, ""),
+    faceValueCommit: faceCommit,
+    requestedCommit: requestedCommit,
+    fundedAmount: 0 as Uint<64>,
+    feeBps: feeBps,
+    maturityDays: maturityDays,
+    status: FinancingStatus.Requested,
+    riskVerified: false,
+    createdAt: timestamp,
+    fundedAt: 0 as Uint<64>,
+    repaidAt: 0 as Uint<64>
+  };
+
+  financings.insert(disclosedFid, disclose(rec));
+  invoiceFinancing.insert(disclose(invoiceId), disclose(financingId));
+  financingExists.insert(disclosedFid);
+  totalFinancings.increment(1);
+}
+
+// Risk verification — simplified: prove score >= threshold without overflow
+export circuit verifyRisk(
+  financingId: Bytes<32>,
+  threshold: Uint<16>
+): Boolean {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(financingExists.member(disclosedFid)), "Financing not found");
+  const rec = financings.lookup(disclosedFid);
+
+  const score = localCreditScore();
+  const salt = localCreditSalt();
+  const data = CreditScoreData { score: score, salt: salt };
+  const recomputed = commitCreditScore(data);
+  assert(disclose(recomputed == creditCommitments.lookup(disclose(rec.sellerId))), "Credit commitment mismatch");
+
+  // Direct comparison: score must meet threshold
+  const passed: Boolean = score >= disclose(threshold);
+  assert(disclose(passed), "Risk threshold not met");
+
+  riskVerified.insert(disclosedFid);
+  const updated = FinancingRecord {
+    financingId: rec.financingId,
+    invoiceId: rec.invoiceId,
+    sellerId: rec.sellerId,
+    investorId: rec.investorId,
+    faceValueCommit: rec.faceValueCommit,
+    requestedCommit: rec.requestedCommit,
+    fundedAmount: rec.fundedAmount,
+    feeBps: rec.feeBps,
+    maturityDays: rec.maturityDays,
+    status: rec.status,
+    riskVerified: true,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    repaidAt: rec.repaidAt
+  };
+  financings.insert(disclosedFid, disclose(updated));
+  return true;
+}
+
+// Lightweight threshold check (for marketplace filtering, no state mutation)
+circuit meetsThreshold(
+  sellerId: Bytes<32>,
+  threshold: Uint<16>
+): Boolean {
+  if (!creditCommitments.member(disclose(sellerId))) { return false; }
+  const score = localCreditScore();
+  const salt = localCreditSalt();
+  const data = CreditScoreData { score: score, salt: salt };
+  const recomputed = commitCreditScore(data);
+  if (disclose(recomputed != creditCommitments.lookup(disclose(sellerId)))) { return false; }
+  return score >= threshold;
+}
+
+// Fund invoice
+export circuit fundInvoice(
+  financingId: Bytes<32>,
+  fundedAmount: Uint<64>,
+  timestamp: Uint<64>
+): [] {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(financingExists.member(disclosedFid)), "Financing not found");
+  const rec = financings.lookup(disclosedFid);
+  assert(disclose(rec.status == FinancingStatus.Requested), "Not requestable");
+  assert(disclose(riskVerified.member(disclosedFid)), "Risk not verified");
+
+  const investorSecret = getInvestorSecret();
+  const investorId = deriveInvestorId(investorSecret);
+
+  const nullifier = computeFinancingNullifier(investorSecret, financingId);
+  assert(disclose(!usedFinancingNullifiers.member(disclose(nullifier))), "Replay: already funded");
+  usedFinancingNullifiers.insert(disclose(nullifier));
+
+  const updated = FinancingRecord {
+    financingId: rec.financingId,
+    invoiceId: rec.invoiceId,
+    sellerId: rec.sellerId,
+    investorId: investorId,
+    faceValueCommit: rec.faceValueCommit,
+    requestedCommit: rec.requestedCommit,
+    fundedAmount: fundedAmount,
+    feeBps: rec.feeBps,
+    maturityDays: rec.maturityDays,
+    status: FinancingStatus.Funded,
+    riskVerified: rec.riskVerified,
+    createdAt: rec.createdAt,
+    fundedAt: timestamp,
+    repaidAt: 0 as Uint<64>
+  };
+  financings.insert(disclosedFid, disclose(updated));
+}
+
+// Repay
+export circuit repay(financingId: Bytes<32>, timestamp: Uint<64>): [] {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(financingExists.member(disclosedFid)), "Financing not found");
+  const rec = financings.lookup(disclosedFid);
+  assert(disclose(rec.status == FinancingStatus.Funded), "Not funded");
+  const sellerSecret = getSellerSecret();
+  const sellerId = derivePartyId(sellerSecret);
+  assert(disclose(sellerId == rec.sellerId), "Only seller can repay");
+  const updated = FinancingRecord {
+    financingId: rec.financingId,
+    invoiceId: rec.invoiceId,
+    sellerId: rec.sellerId,
+    investorId: rec.investorId,
+    faceValueCommit: rec.faceValueCommit,
+    requestedCommit: rec.requestedCommit,
+    fundedAmount: rec.fundedAmount,
+    feeBps: rec.feeBps,
+    maturityDays: rec.maturityDays,
+    status: FinancingStatus.Repaid,
+    riskVerified: rec.riskVerified,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    repaidAt: timestamp
+  };
+  financings.insert(disclosedFid, disclose(updated));
+}
+
+export circuit cancelFinancing(financingId: Bytes<32>): [] {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(financingExists.member(disclosedFid)), "Financing not found");
+  const rec = financings.lookup(disclosedFid);
+  assert(disclose(rec.status == FinancingStatus.Requested), "Only requested can be cancelled");
+  const sellerSecret = getSellerSecret();
+  const sellerId = derivePartyId(sellerSecret);
+  assert(disclose(sellerId == rec.sellerId), "Only seller");
+  const updated = FinancingRecord {
+    financingId: rec.financingId,
+    invoiceId: rec.invoiceId,
+    sellerId: rec.sellerId,
+    investorId: rec.investorId,
+    faceValueCommit: rec.faceValueCommit,
+    requestedCommit: rec.requestedCommit,
+    fundedAmount: rec.fundedAmount,
+    feeBps: rec.feeBps,
+    maturityDays: rec.maturityDays,
+    status: FinancingStatus.Cancelled,
+    riskVerified: rec.riskVerified,
+    createdAt: rec.createdAt,
+    fundedAt: rec.fundedAt,
+    repaidAt: rec.repaidAt
+  };
+  financings.insert(disclosedFid, disclose(updated));
+}
+
+// Reads
+export circuit getFinancing(financingId: Bytes<32>): FinancingRecord {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(financingExists.member(disclosedFid)), "Financing not found");
+  return financings.lookup(disclosedFid);
+}
+
+export circuit financingStatus(financingId: Bytes<32>): FinancingStatus {
+  const disclosedFid = disclose(financingId);
+  assert(disclose(financingExists.member(disclosedFid)), "Financing not found");
+  return financings.lookup(disclosedFid).status;
+}
+
+export circuit isFunded(financingId: Bytes<32>): Boolean {
+  const disclosedFid = disclose(financingId);
+  if (!financingExists.member(disclosedFid)) { return false; }
+  return financings.lookup(disclosedFid).status == FinancingStatus.Funded;
+}

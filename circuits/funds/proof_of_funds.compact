@@ -1,0 +1,68 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Proof of Funds Circuit
+// -----------------------------------------------------------------------------
+// Proves: private_balance >= required_amount
+// without revealing the actual balance.
+//
+// Inputs (private witnesses):
+//   - private_balance: the prover's actual balance
+//   - required_amount: the amount needed for the transaction (public input)
+//   - balance_salt: salt for balance commitment
+//
+// Outputs (public):
+//   - funds_sufficient: Boolean (true if balance >= required)
+//   - balance_commitment: commitment to the private balance
+//
+// Used by: BusinessRegistry, PurchaseOrder (funds verification)
+// =============================================================================
+
+export struct FundsProofInput {
+  private_balance: Uint<64>;
+  required_amount: Uint<64>;
+  balance_salt: Bytes<32>;
+}
+
+export struct FundsProofOutput {
+  funds_sufficient: Boolean;
+  balance_commitment: Bytes<32>;
+}
+
+struct BalanceCommitment {
+  balance: Uint<64>;
+  salt: Bytes<32>;
+}
+
+// Pure circuit to compute balance commitment
+pure circuit commitBalance(balance: Uint<64>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<BalanceCommitment>(
+    BalanceCommitment { balance: balance, salt: salt }
+  );
+}
+
+// Main proof circuit
+export circuit proveFundsSufficient(input: FundsProofInput): FundsProofOutput {
+  const sufficient = input.private_balance >= input.required_amount;
+  const commitment = commitBalance(input.private_balance, input.balance_salt);
+  
+  return FundsProofOutput {
+    funds_sufficient: sufficient,
+    balance_commitment: commitment
+  };
+}
+
+// Verification circuit - verifies a proof against a stored commitment
+export circuit verifyFundsProof(
+  balance_commitment: Bytes<32>,
+  required_amount: Uint<64>,
+  private_balance: Uint<64>,
+  balance_salt: Bytes<32>
+): Boolean {
+  const recomputed = commitBalance(private_balance, balance_salt);
+  const matches = recomputed == balance_commitment;
+  const sufficient = private_balance >= required_amount;
+  return matches && sufficient;
+}

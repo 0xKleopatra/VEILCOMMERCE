@@ -1,0 +1,65 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — Proof of Inventory Circuit
+// -----------------------------------------------------------------------------
+// Proves: private_inventory >= required_quantity
+// without revealing the actual inventory levels.
+//
+// Inputs (private witnesses):
+//   - private_inventory: the prover's actual inventory count
+//   - required_quantity: the quantity needed for the order (public input)
+//   - inventory_salt: salt for inventory commitment
+//
+// Outputs (public):
+//   - inventory_sufficient: Boolean
+//   - inventory_commitment: commitment to the private inventory
+//
+// Used by: PurchaseOrder (seller verification)
+// =============================================================================
+
+export struct InventoryProofInput {
+  private_inventory: Uint<64>;
+  required_quantity: Uint<64>;
+  inventory_salt: Bytes<32>;
+}
+
+export struct InventoryProofOutput {
+  inventory_sufficient: Boolean;
+  inventory_commitment: Bytes<32>;
+}
+
+struct InventoryCommitment {
+  inventory: Uint<64>;
+  salt: Bytes<32>;
+}
+
+pure circuit commitInventory(inventory: Uint<64>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<InventoryCommitment>(
+    InventoryCommitment { inventory: inventory, salt: salt }
+  );
+}
+
+export circuit proveInventorySufficient(input: InventoryProofInput): InventoryProofOutput {
+  const sufficient = input.private_inventory >= input.required_quantity;
+  const commitment = commitInventory(input.private_inventory, input.inventory_salt);
+  
+  return InventoryProofOutput {
+    inventory_sufficient: sufficient,
+    inventory_commitment: commitment
+  };
+}
+
+export circuit verifyInventoryProof(
+  inventory_commitment: Bytes<32>,
+  required_quantity: Uint<64>,
+  private_inventory: Uint<64>,
+  inventory_salt: Bytes<32>
+): Boolean {
+  const recomputed = commitInventory(private_inventory, inventory_salt);
+  const matches = recomputed == inventory_commitment;
+  const sufficient = private_inventory >= required_quantity;
+  return matches && sufficient;
+}

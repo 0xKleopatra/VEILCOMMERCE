@@ -1,0 +1,88 @@
+{
+  "network": "preprod",
+  "deployer": "1AM/Lace browser wallet via veilManager.deployAndWait",
+  "compiled": "2026-09-14T17:18:00Z",
+  "deployed": "2026-09-14T18:00:00Z",
+  "allDeployed": true,
+  "toolchain": {
+    "compact": "0.5.1",
+    "ledger-v8": "8.0.3",
+    "midnight-js": "4.0.4",
+    "vite": "5.4.21"
+  },
+  "contracts": {
+    "BusinessRegistry": {
+      "managed": "contracts/managed/BusinessRegistry/contract/index.js",
+      "zk": "frontend/public/contract/BusinessRegistry/keys",
+      "circuits": ["registerBusiness","verifyBusiness","proveBusinessEligible","proveAuthorization","revokeBusiness","setJurisdictionAllowed"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('BusinessRegistry', [businessId, jurisdiction, credentialHash, timestamp])",
+      "address": "f3dcfd3de998769631bde89b2744700496f49c72033be1c592ba8121185f5b06"
+    },
+    "PurchaseOrder": {
+      "managed": "contracts/managed/PurchaseOrder/contract/index.js",
+      "zk": "frontend/public/contract/PurchaseOrder/keys",
+      "circuits": ["createPurchaseOrder","confirmOrder","markBuyerVerified","markSellerVerified","markFundsVerified","markFunded","markShipped","markDelivered","markSettled"],
+      "status": "deployed",
+      "deployVia": " veilManager.deployAndWait('PurchaseOrder', [orderId[32], sellerId[32], currency[32], timestamp]) // witnesses: quantity, unitPrice, destinationHash, orderSalt",
+      "address": "f74138cc8efcb6af81dd716a7fdad623cec54104b5a2a1616b08848d36825ca7"
+    },
+    "Escrow": {
+      "managed": "contracts/managed/Escrow/contract/index.js",
+      "zk": "frontend/public/contract/Escrow/keys",
+      "circuits": ["createEscrow","verifyDelivery","release","refund","dispute"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('Escrow', [escrowId[32], orderId[32], sellerId[32], timestamp]) // witnesses: privateAmount, escrowNonce, releaseSecret",
+      "address": "1ceac78318d05b10d13d91dd3480490ccd231d67cf031ff5c415d37593021868"
+    },
+    "Invoice": {
+      "managed": "contracts/managed/Invoice/contract/index.js",
+      "zk": "frontend/public/contract/Invoice/keys",
+      "circuits": ["issue","acknowledge","markFinancingEligible","settle","voidInvoice"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('Invoice', [invoiceId[32], orderId[32], timestamp, dueAt]) // witnesses: amount, buyer, memo, salt",
+      "address": "9910e937506d34e127988c6685eacf872bd643c61be6a9a75d6820af2eb5efbd"
+    },
+    "Financing": {
+      "managed": "contracts/managed/Financing/contract/index.js",
+      "zk": "frontend/public/contract/Financing/keys",
+      "circuits": ["commitCreditScore","requestFinancing","verifyRisk","fundInvoice","repay"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('Financing', [financingId[32], invoiceId[32]])",
+      "address": "52e7a4a67f05ce34b88f3d969ef1facce4a030ec24d7444b93f753d125feccd4"
+    },
+    "Compliance": {
+      "managed": "contracts/managed/Compliance/contract/index.js",
+      "zk": "frontend/public/contract/Compliance/keys",
+      "circuits": ["attestCompliance","evaluateCompliance","grantDisclosure","revokeCompliance"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('Compliance', [subjectId[32], timestamp])",
+      "address": "d6acb27c082b08d9c127e6cf5185f33e491cd484be65b9239c2b4f884c6a35ad"
+    },
+    "CredentialRegistry": {
+      "managed": "contracts/managed/CredentialRegistry/contract/index.js",
+      "zk": "frontend/public/contract/CredentialRegistry/keys",
+      "circuits": ["issueCredential","proveCredential","verifyCredential","revokeCredential"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('CredentialRegistry', [])",
+      "address": "cded8a9c5065a1b8378acd666c73a0b0f13a6fa290c0d2de9b929be7c0b10ab6"
+    },
+    "Settlement": {
+      "managed": "contracts/managed/Settlement/contract/index.js",
+      "zk": "frontend/public/contract/Settlement/keys",
+      "circuits": ["settleTrade","settleEscrowLeg","reconcile"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('Settlement', [settlementId[32], orderId[32]])",
+      "address": "9fae70798d880597fe6db8c7bd4f3d09d50f55f7f7e78ec1b53617cd4d84eefd"
+    }
+  },
+  "frontend": {
+    "manager": "frontend/src/midnight/veilcommerce-manager.ts: veilManager.deployAndWait + call + queryVeilLedger",
+    "wallet": "frontend/src/contexts/WalletContext.tsx: 1AM (window.midnight['1am']) + Lace (Object.values + window.lace.midnight) dual, 1AM dust-free via balanceUnsealedTransaction",
+    "providers": "frontend/src/lib/midnight.ts: canonical FetchZkConfigProvider + patched indexer offset:null + scoped privateStateProvider + CostModel",
+    "trade": "frontend/src/pages/Trade.tsx: PurchaseOrder deploy → markBuyer/Seller/FundsVerified → Escrow deploy → verifyDelivery → Settlement",
+    "ledger": "frontend/src/hooks/useVeilLedger.ts: queryVeilLedger(contractName, address) → ledger(state.data)",
+    "proofServer": "docker-compose.yml: midnightntwrk/proof-server:7.0.0 @ :6300 healthcheck",
+    "note": "All 8 contracts DEPLOYED on preprod via 1AM. Next: run real Trade flow (createPurchaseOrder → verify → Escrow verifyDelivery → Settlement) and ledger reads."
+  }
+}
