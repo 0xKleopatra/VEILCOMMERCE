@@ -274,7 +274,7 @@ function orderSaltWitness(ctx: { privateState: any }): [any, Uint8Array] {
 }
 function localQuantityWitness(ctx: { privateState: any }): [any, bigint] {
   const ps = ctx.privateState ?? {};
-  const v = (ps as any).localQuantity ?? 10000n;
+  const v = (ps as any).localQuantity ?? 10n;
   return [{ ...ps, localQuantity: v }, v];
 }
 function localUnitPriceWitness(ctx: { privateState: any }): [any, bigint] {

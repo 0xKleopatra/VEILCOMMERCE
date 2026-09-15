@@ -560,10 +560,22 @@ export class VeilCommerceManager {
   }
 
   // Call a circuit on a deployed contract — privoice/dmarket pattern
-  async call(contractName: VeilContractName, contractAddress: string, circuit: string, args: any[] = []): Promise<string> {
+  async call(contractName: VeilContractName, contractAddress: string, circuit: string, args: any[] = [], privateStateOverrides?: Record<string, any>): Promise<string> {
     const { base, connectedAPI, normalizedCoinKey } = await initializeProviders();
     const contractModule = await loadVeilContractModule(contractName);
     const witnesses = createVeilWitnesses();
+    // If caller provides private state overrides, wrap witness functions to inject them
+    if (privateStateOverrides) {
+      for (const [key, value] of Object.entries(privateStateOverrides)) {
+        const origWitness = (witnesses as any)[key];
+        if (origWitness) {
+          (witnesses as any)[key] = (ctx: { privateState: any }) => {
+            const ps = { ...(ctx.privateState ?? {}), [key]: value };
+            return origWitness({ ...ctx, privateState: ps });
+          };
+        }
+      }
+    }
     const compiled = createVeilCompiledContract(contractName, contractModule, witnesses);
     const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}/`, window.location.origin).toString(), window.fetch.bind(window));
     const provingProvider = await connectedAPI.getProvingProvider(zkConfigProvider);

@@ -89,7 +89,15 @@ export function Trade() {
       const timestamp = BigInt(Date.now());
       console.log('[Trade] Deploying PurchaseOrder via veilManager', toHex(orderIdBytes).slice(0, 16) + '…');
       const result = await veilManager.deployAndWait('PurchaseOrder', []);
-      await veilManager.call('PurchaseOrder', result.contractAddress, 'createPurchaseOrder', [orderIdBytes, sellerId, currencyBytes, timestamp]);
+      // Parse user inputs for witnesses: total must equal qty * unitPrice
+      const qty = BigInt(state.quantity);
+      const unitPrice = BigInt(String(state.value).replace(/[^0-9]/g, '') || '0');
+      const total = qty * unitPrice;
+      await veilManager.call('PurchaseOrder', result.contractAddress, 'createPurchaseOrder', [orderIdBytes, sellerId, currencyBytes, timestamp], {
+        localQuantity: qty,
+        localUnitPrice: unitPrice,
+        localTotalAmount: total,
+      });
       setContractAddress(result.contractAddress);
       setState((prev) => ({ ...prev, orderId: result.contractAddress.slice(0, 12), orderIdBytes }));
       localStorage.setItem('veil_purchaseOrder_address', result.contractAddress);
