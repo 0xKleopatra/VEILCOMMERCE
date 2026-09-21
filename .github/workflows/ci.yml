@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: '22'
+      COMPACT_VERSION: '0.5.1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install compact
+        run: npm install -g @midnight-ntwrk/compact@${{ env.COMPACT_VERSION }}
+
+      - name: Verify toolchain
+        run: |
+          compact --version
+          node --version
+          npm --version
+          npx tsc --version || echo "tsc via frontend"
+
+      - name: Compile Compact contracts
+        run: |
+          for f in contracts/*.compact; do
+            echo "Compiling $f"
+            compact compile "$f" "contracts/managed/$(basename $f .compact)"
+          done
+          ls -R contracts/managed | head -100
+          test -f contracts/managed/Escrow/contract/index.js
+          test -f contracts/managed/Invoice/contract/index.js
+          test -f contracts/managed/BusinessRegistry/contract/index.js
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Verify ZK assets
+        run: |
+          ls contracts/managed/*/contract/index.js
+          ls contracts/managed/*/keys/*.prover | head -5
+          echo "✓ ZK artifacts present"
+
+  # Optional: keep passing even without proof-server
+  # Tests use compact-runtime simulator (no docker required)

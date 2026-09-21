@@ -1,3 +1,4 @@
+[![CI](https://github.com/0xKleopatra/VEILCOMMERCE/actions/workflows/ci.yml/badge.svg)](https://github.com/0xKleopatra/VEILCOMMERCE/actions/workflows/ci.yml)
 [![Wave Hacks](https://img.shields.io/badge/Wave%20Hacks-Build%20Privacy--First%20Apps%20on%20Midnight-blueviolet?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0tMSAxNEg5VjhIMTF2OHptNCAwaC0yVjhoMnY4eiIvPjwvc3ZnPg==)](https://app.akindo.io/wave-hacks/jaMZjqPOBsLXvjdG)
 
 # VeilCommerce
