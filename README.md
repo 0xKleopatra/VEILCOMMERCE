@@ -98,9 +98,9 @@ witness localSalt(): Bytes32;               // contracts/Invoice.compact:51
 
 ```ts
 // frontend/src/midnight/witnesses.ts:9 — [privateState, witnessValue]
-export function partySecretWitness(ctx): [state, {bytes: Uint8Array}] {
-  const secret = ctx.privateState.partySecret ?? persistentSecret('party'); // crypto.getRandomValues(32) + localStorage veil:identity:*
-  return [{...ctx.privateState, partySecret: secret}, {bytes: secret}];
+export function partySecretWitness(ctx): [state, { bytes: Uint8Array }] {
+  const secret = ctx.privateState.partySecret ?? persistentSecret("party"); // crypto.getRandomValues(32) + localStorage veil:identity:*
+  return [{ ...ctx.privateState, partySecret: secret }, { bytes: secret }];
 }
 ```
 
@@ -142,6 +142,14 @@ Verification re-computes and compares (`release` checks `recomputed == rec.relea
 - **Auditable when authorized** — holder re-reveals preimage off-chain, verifier recomputes `termsCommitment()` against on-chain hash
 
 ---
+
+### Compact Compiled Screenshot
+
+![compact](Public/compact2.png)
+
+### Deployed Compact Contracts
+
+![deployed](Public/deployed2.png)
 
 ## 🏗️ Architecture
 
