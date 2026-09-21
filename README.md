@@ -66,6 +66,83 @@ Global commerce requires trust between strangers. Today, that trust demands tota
 
 ---
 
+## 🔒 Public State vs Private Witness
+
+VeilCommerce is built on Midnight's dual-state model. **Private witnesses** never leave your device — **public state** only stores commitments, flags and nullifiers. Circuits bridge the two with `persistentHash` + `disclose()`.
+
+### Public state — on-chain, visible to everyone
+
+Stored in Compact `ledger` (`Map`/`Set`/`Counter`) and disclosed via `disclose()`. Readable by anyone via `queryVeilLedger` + indexer.
+
+- **Commitments, not preimages** — e.g. `contracts/Escrow.compact:46-50` `escrows: Map<Bytes32,EscrowRecord>` holds `amountCommit`/`releaseCommit` (`persistentHash(AmountData)` `contracts/Escrow.compact:66-69`), `contracts/Invoice.compact:36-37` `invoices: Map<Bytes32,Bytes32>` holds `termsCommitment(amount,buyer,memo,salt)` `contracts/Invoice.compact:68-76`
+- **State & flags** — `EscrowState {Funded, DeliveryVerified, Released}` `contracts/Escrow.compact:21`, `InvoiceStatus`, `acknowledged/settled/voided/financingEligible` sets, `deliveryVerified` set
+- **Nullifiers & counters** — `usedReleaseNullifiers` `contracts/Escrow.compact:49`, `totalEscrows`/`totalInvoices` — prevents replay without linking to identity
+- **Derived IDs** — `derivePartyId(sk)=persistentHash(["veil:escrow:party:v1", sk.bytes])` `contracts/Escrow.compact:59-63`, `issuerId` `contracts/Invoice.compact:54`
+
+Anyone can query: `await queryVeilLedger("Escrow","1ceac7...")` → `{ escrows, totalEscrows }` but learns only `✓ sufficient / ✓ verified`, never the preimage.
+
+### Private witness — off-chain, yours only
+
+Supplied per-call via `witness` functions, stored in `privateStateProvider` (`levelPrivateStateProvider` pattern). Never disclosed, only used inside the prover.
+
+Defined in `frontend/src/midnight/witnesses.ts:53-56,47-51`:
+
+```compact
+// contracts declare what they need — frontend provides it
+witness getPartySecret(): PartySecret;      // contracts/Escrow.compact:53
+witness privateAmount(): Uint64;            // contracts/Escrow.compact:56
+witness localAmount(): Uint64;              // contracts/Invoice.compact:48
+witness localBuyer(): Bytes32;              // contracts/Invoice.compact:49
+witness localSalt(): Bytes32;               // contracts/Invoice.compact:51
+```
+
+```ts
+// frontend/src/midnight/witnesses.ts:9 — [privateState, witnessValue]
+export function partySecretWitness(ctx): [state, {bytes: Uint8Array}] {
+  const secret = ctx.privateState.partySecret ?? persistentSecret('party'); // crypto.getRandomValues(32) + localStorage veil:identity:*
+  return [{...ctx.privateState, partySecret: secret}, {bytes: secret}];
+}
+```
+
+Persisted per-role across calls (`veil:identity:*` in `localStorage` + module cache `frontend/src/midnight/witnesses.ts:170-214`) so the same wallet derives stable `businessId / partyId / issuerId` via domain-separated `persistentHash` `frontend/src/midnight/witnesses.ts:223-245` — no cross-role linkability.
+
+### How they connect
+
+```
+Private witness (device)                Circuit (ZK)                      Public ledger (chain)
+ ──────────────────                     ──────────────                     ───────────────────
+ secret, amount, nonce, salt  ──→  persistentHash() → commitment ──→ disclose(commitment) → Map/Set
+ secret + escrowId            ──→  persistentHash() → nullifier  ──→ disclose(nullifier)  → usedReleaseNullifiers
+ balance, required            ──→  assert(balance >= required)   ──→ disclose(true/false)  → ✓ Funds sufficient
+```
+
+Example — `Escrow.createEscrow` `contracts/Escrow.compact:104-138`:
+
+```compact
+const buyerSecret = getPartySecret();          // private witness
+const amount = privateAmount();                // private witness
+const amountCommit = persistentHash<AmountData>({amount, salt: nonce}); // computed in-circuit
+escrows.insert(disclose(escrowId), disclose(EscrowRecord{ buyer: derivePartyId(buyerSecret), amountCommit, ... }));
+```
+
+Example — `Invoice.issue` `contracts/Invoice.compact:105-128`:
+
+```compact
+const commitment = persistentHash<InvoiceTerms>({amount: localAmount(), buyer: localBuyer(), memo: localMemo(), salt: localSalt()});
+invoices.insert(disclose(invoiceId), disclose(commitment)); // only hash on-chain
+```
+
+Verification re-computes and compares (`release` checks `recomputed == rec.releaseCommit` `contracts/Escrow.compact:184`), nullifier check blocks replay (`!usedReleaseNullifiers.member(nullifier)` `contracts/Escrow.compact:189`), ledger never sees the salt/amount/buyer.
+
+### Why it matters
+
+- **No private data on-chain** — amounts, buyers, salts, scores stay as witnesses; only `persistentHash` commitments are disclosed
+- **No replay** — each authorization consumes a nullifier (`computeReleaseNullifier(secret, escrowId)` `contracts/Escrow.compact:90`)
+- **No linkability** — domain tags `veil:business:owner:v1`, `veil:invoice:issuer:v1` etc. give role-specific IDs from same secret
+- **Auditable when authorized** — holder re-reveals preimage off-chain, verifier recomputes `termsCommitment()` against on-chain hash
+
+---
+
 ## 🏗️ Architecture
 
 ```
