@@ -463,8 +463,17 @@ Built on patterns from the Midnight ecosystem:
 
 ---
 
+## 🎬 Video Demo
+
+[![VeilCommerce Demo](https://img.youtube.com/vi/Yyqx0SIZaX0/0.jpg)](https://youtu.be/Yyqx0SIZaX0)
+
+**Watch:** https://youtu.be/Yyqx0SIZaX0
+
+---
+
 ## 🔗 Links
 
+- **Video Demo**: [https://youtu.be/Yyqx0SIZaX0](https://youtu.be/Yyqx0SIZaX0)
 - **Live Demo**: [website](https://veilcommerce-app.vercel.app/) (deployed)
 - **Documentation**: [docs.veilcommerce.xyz](https://docs.veilcommerce.xyz)
 - **Midnight Network**: [midnight.network](https://midnight.network)
