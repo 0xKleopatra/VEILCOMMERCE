@@ -2,6 +2,8 @@
 
 ## Privacy-Preserving B2B Commerce on Midnight
 
+**Interactive Presentation:** [https://gamma.app/docs/The-Problem-jrniyf1fo5xhtir](https://gamma.app/docs/The-Problem-jrniyf1fo5xhtir)
+
 ---
 
 ## Slide 1: The Problem

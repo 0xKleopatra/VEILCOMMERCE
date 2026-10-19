@@ -474,7 +474,7 @@ Built on patterns from the Midnight ecosystem:
 ## 🔗 Links
 
 - **Video Demo**: [https://youtu.be/Yyqx0SIZaX0](https://youtu.be/Yyqx0SIZaX0)
-- **Slide Deck**: [SLIDE_DECK.md](SLIDE_DECK.md)
+- **Slide Deck**: [Gamma Presentation](https://gamma.app/docs/The-Problem-jrniyf1fo5xhtir) ([Local Markdown](SLIDE_DECK.md))
 - **Live Demo**: [website](https://veilcommerce-app.vercel.app/) (deployed)
 - **Documentation**: [docs.veilcommerce.xyz](https://docs.veilcommerce.xyz)
 - **Midnight Network**: [midnight.network](https://midnight.network)
