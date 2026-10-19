@@ -11,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2.2-blue)](https://typescriptlang.org)
 [![React](https://img.shields.io/badge/React-18.2.0-61dafb)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.4.21-646cff)](https://vitejs.dev)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
 
 ---
 
@@ -443,7 +443,7 @@ npm test -- veilcommerce/tests/integration/e2e_trade_flow.test.ts
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE) for details.
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
@@ -474,6 +474,7 @@ Built on patterns from the Midnight ecosystem:
 ## 🔗 Links
 
 - **Video Demo**: [https://youtu.be/Yyqx0SIZaX0](https://youtu.be/Yyqx0SIZaX0)
+- **Slide Deck**: [SLIDE_DECK.md](SLIDE_DECK.md)
 - **Live Demo**: [website](https://veilcommerce-app.vercel.app/) (deployed)
 - **Documentation**: [docs.veilcommerce.xyz](https://docs.veilcommerce.xyz)
 - **Midnight Network**: [midnight.network](https://midnight.network)
