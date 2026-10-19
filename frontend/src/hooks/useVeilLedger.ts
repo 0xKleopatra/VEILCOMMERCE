@@ -45,23 +45,21 @@ export function useVeilQuery<T = any>(contractName: VeilContractName | null, con
 
 // Convenience: read addresses from localStorage (kredz pattern: kredz_contract_address)
 export function useStoredAddresses() {
-  const [addrs, setAddrs] = useState<Record<string, string | null>>({
-    purchaseOrder: localStorage.getItem('veil_purchaseOrder_address'),
+  const readAll = () => ({
+    purchaseOrder: localStorage.getItem('veil_purchaseorder_address') ?? localStorage.getItem('veil_purchaseOrder_address'),
     escrow: localStorage.getItem('veil_escrow_address'),
     invoice: localStorage.getItem('veil_invoice_address'),
     financing: localStorage.getItem('veil_financing_address'),
     settlement: localStorage.getItem('veil_settlement_address'),
-    businessRegistry: localStorage.getItem('veil_businessRegistry_address'),
+    businessRegistry: localStorage.getItem('veil_businessregistry_address') ?? localStorage.getItem('veil_businessRegistry_address'),
+    compliance: localStorage.getItem('veil_compliance_address'),
+    credentialRegistry: localStorage.getItem('veil_credentialregistry_address') ?? localStorage.getItem('veil_credentialRegistry_address'),
+    auditorRegistry: localStorage.getItem('veil_auditorregistry_address') ?? localStorage.getItem('veil_auditorRegistry_address'),
   });
+
+  const [addrs, setAddrs] = useState<Record<string, string | null>>(readAll);
   useEffect(() => {
-    const onStorage = () => setAddrs({
-      purchaseOrder: localStorage.getItem('veil_purchaseOrder_address'),
-      escrow: localStorage.getItem('veil_escrow_address'),
-      invoice: localStorage.getItem('veil_invoice_address'),
-      financing: localStorage.getItem('veil_financing_address'),
-      settlement: localStorage.getItem('veil_settlement_address'),
-      businessRegistry: localStorage.getItem('veil_businessRegistry_address'),
-    });
+    const onStorage = () => setAddrs(readAll());
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);

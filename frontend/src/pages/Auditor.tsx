@@ -74,7 +74,7 @@ export function Auditor() {
         }
       })
       .catch(() => {});
-    const stored = localStorage.getItem('veil_auditorregistry_address');
+    const stored = localStorage.getItem('veil_auditorregistry_address') ?? localStorage.getItem('veil_auditorRegistry_address');
     if (stored) setRegistryAddress(stored);
   }, []);
 

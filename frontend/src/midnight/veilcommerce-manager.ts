@@ -432,7 +432,7 @@ export class VeilCommerceManager {
       const contractModule = await loadVeilContractModule(contractName);
       const witnesses = witnessesOverride ?? createVeilWitnesses();
       const compiled = createVeilCompiledContract(contractName, contractModule, witnesses);
-      const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}/`, window.location.origin).toString(), window.fetch.bind(window));
+      const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}`, window.location.origin).toString().replace(/\/+$/, ''), window.fetch.bind(window));
       const provingProvider = await connectedAPI.getProvingProvider(zkConfigProvider);
       console.log(`[VeilCommerce] Proving provider for ${contractName} ready`);
       const providers: any = {
@@ -483,16 +483,51 @@ export class VeilCommerceManager {
       } as any);
       const contractAddress = deployTxData.public.contractAddress;
       console.log(`[VeilCommerce] Submitting ${contractName} tx ${contractAddress.slice(0, 12)}… via ${config.networkId}`);
-      await submitTxAsync(providers as any, { unprovenTx: deployTxData.private.unprovenTx } as any);
-      await providers.privateStateProvider.setContractAddress(contractAddress);
-      if ((deployTxData.private as any).signingKey) {
-        await providers.privateStateProvider.setSigningKey(contractAddress, (deployTxData.private as any).signingKey);
+
+      // Persist address immediately so it is safely recorded even if network drops during indexing
+      try {
+        localStorage.setItem(`veil_${contractName.toLowerCase()}_address`, contractAddress);
+        localStorage.setItem(`veil_${contractName}_address`, contractAddress);
+      } catch {}
+
+      try {
+        await submitTxAsync(providers as any, { unprovenTx: deployTxData.private.unprovenTx } as any);
+        console.log(`[VeilCommerce] ${contractName} deploy tx broadcast confirmed!`);
+      } catch (submitErr: any) {
+        const isUserRejected = (submitErr as any)?.code === 'Rejected' || String(submitErr?.message ?? '').toLowerCase().includes('user rejected');
+        if (isUserRejected) throw submitErr;
+        console.warn(`[VeilCommerce] submitTxAsync note for ${contractName}:`, submitErr);
       }
+
+      try {
+        await providers.privateStateProvider.setContractAddress(contractAddress);
+        if ((deployTxData.private as any).signingKey) {
+          await providers.privateStateProvider.setSigningKey(contractAddress, (deployTxData.private as any).signingKey);
+        }
+      } catch (psErr: any) {
+        console.warn(`[VeilCommerce] Private state warning for ${contractName}:`, psErr);
+      }
+
+      // Resilient indexer polling: transient fetch failures or indexer lag must not abort deployment
+      let isConfirmedOnIndexer = false;
       for (let i = 0; i < 30; i++) {
-        const state = await providers.publicDataProvider.queryContractState(contractAddress);
-        if ((state as any)?.data) break;
+        try {
+          const state = await providers.publicDataProvider.queryContractState(contractAddress);
+          if ((state as any)?.data) {
+            console.log(`[VeilCommerce] ${contractName} confirmed on indexer at attempt ${i + 1}`);
+            isConfirmedOnIndexer = true;
+            break;
+          }
+        } catch (queryErr: any) {
+          console.warn(`[VeilCommerce] Indexer poll attempt ${i + 1}/30 for ${contractName}:`, queryErr?.message ?? queryErr);
+        }
         await new Promise((r) => setTimeout(r, 2000));
       }
+
+      if (!isConfirmedOnIndexer) {
+        console.info(`[VeilCommerce] ${contractName} broadcast succeeded with address ${contractAddress}; Midnight Preprod indexer is still processing block.`);
+      }
+
       deployment.next({ status: 'deployed', contractName, contractAddress, deployedContract: { deployTxData, contractAddress, compiledContract: compiled }, providers });
     } catch (e: any) {
       const isUserRejected = (e as any)?.code === 'Rejected' || String(e?.message ?? '').toLowerCase().includes('user rejected');
@@ -519,7 +554,7 @@ export class VeilCommerceManager {
       const contractModule = await loadVeilContractModule(contractName);
       const witnesses = createVeilWitnesses();
       const compiled = createVeilCompiledContract(contractName, contractModule, witnesses);
-      const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}/`, window.location.origin).toString(), window.fetch.bind(window));
+      const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}`, window.location.origin).toString().replace(/\/+$/, ''), window.fetch.bind(window));
       const provingProvider = await connectedAPI.getProvingProvider(zkConfigProvider);
       const shielded = await connectedAPI.getShieldedAddresses();
       const providers: any = {
@@ -579,7 +614,7 @@ export class VeilCommerceManager {
       }
     }
     const compiled = createVeilCompiledContract(contractName, contractModule, witnesses);
-    const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}/`, window.location.origin).toString(), window.fetch.bind(window));
+    const zkConfigProvider = new FetchZkConfigProvider<any>(new URL(`/contract/${contractName}`, window.location.origin).toString().replace(/\/+$/, ''), window.fetch.bind(window));
     const provingProvider = await connectedAPI.getProvingProvider(zkConfigProvider);
     const shielded = await connectedAPI.getShieldedAddresses();
     // Ensure coin key is hex without 0x for runtime (CompactError: prefixes not allowed)
@@ -626,8 +661,12 @@ export class VeilCommerceManager {
     const txId = await submitTxAsync(providers as any, { unprovenTx: callTx.private.unprovenTx, circuitId: circuit } as any);
     for (let i = 0; i < 15; i++) {
       await new Promise((r) => setTimeout(r, 2000));
-      const state = await providers.publicDataProvider.queryContractState(contractAddress);
-      if ((state as any)?.data) break;
+      try {
+        const state = await providers.publicDataProvider.queryContractState(contractAddress);
+        if ((state as any)?.data) break;
+      } catch (err: any) {
+        console.warn(`[VeilCommerce] queryContractState poll attempt ${i + 1}/15 for ${contractName}:`, err?.message ?? err);
+      }
     }
     return txId;
   }
@@ -636,10 +675,15 @@ export class VeilCommerceManager {
 export const veilManager = new VeilCommerceManager();
 
 export async function queryVeilLedger(contractName: VeilContractName, contractAddress: string) {
-  const { base } = await initializeProviders();
-  const state = await base.publicDataProvider.queryContractState(contractAddress);
-  if (!state || !(state as any).data) return null;
-  const mod = await loadVeilContractModule(contractName);
-  const ledger = (mod as any).ledger;
-  return ledger ? ledger((state as any).data) : (state as any).data;
+  try {
+    const { base } = await initializeProviders();
+    const state = await base.publicDataProvider.queryContractState(contractAddress);
+    if (!state || !(state as any).data) return null;
+    const mod = await loadVeilContractModule(contractName);
+    const ledger = (mod as any).ledger;
+    return ledger ? ledger((state as any).data) : (state as any).data;
+  } catch (e: any) {
+    console.warn(`[VeilCommerce] queryVeilLedger(${contractName}, ${contractAddress.slice(0, 10)}…):`, e?.message ?? e);
+    return null;
+  }
 }

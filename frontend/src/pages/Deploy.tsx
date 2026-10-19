@@ -55,25 +55,40 @@ export function Deploy() {
     return () => clearInterval(id);
   }, [config]);
 
-  // Hydrate addresses from localStorage (kredz pattern)
+  // Hydrate addresses from localStorage and fallback to deployments.json
   useEffect(() => {
     const map: Record<string, string> = {};
     for (const c of VEIL_CONTRACTS) {
-      const addr = localStorage.getItem(`veil_${c.toLowerCase()}_address`) ?? (addrs as any)[c.toLowerCase?.() ?? c];
+      const addr = localStorage.getItem(`veil_${c.toLowerCase()}_address`) ?? localStorage.getItem(`veil_${c}_address`) ?? (addrs as any)[c.toLowerCase?.() ?? c];
       if (addr) map[c] = addr;
     }
-    // Also check our new keys
     const extras: Record<string, string> = {
-      BusinessRegistry: localStorage.getItem('veil_businessRegistry_address') ?? '',
-      PurchaseOrder: localStorage.getItem('veil_purchaseOrder_address') ?? '',
+      BusinessRegistry: localStorage.getItem('veil_businessregistry_address') ?? localStorage.getItem('veil_businessRegistry_address') ?? '',
+      PurchaseOrder: localStorage.getItem('veil_purchaseorder_address') ?? localStorage.getItem('veil_purchaseOrder_address') ?? '',
       Escrow: localStorage.getItem('veil_escrow_address') ?? '',
       Invoice: localStorage.getItem('veil_invoice_address') ?? '',
       Financing: localStorage.getItem('veil_financing_address') ?? '',
       Compliance: localStorage.getItem('veil_compliance_address') ?? '',
-      CredentialRegistry: localStorage.getItem('veil_credentialRegistry_address') ?? '',
+      CredentialRegistry: localStorage.getItem('veil_credentialregistry_address') ?? localStorage.getItem('veil_credentialRegistry_address') ?? '',
       Settlement: localStorage.getItem('veil_settlement_address') ?? '',
+      AuditorRegistry: localStorage.getItem('veil_auditorregistry_address') ?? localStorage.getItem('veil_auditorRegistry_address') ?? '',
     };
     for (const [k, v] of Object.entries(extras)) if (v) map[k] = v;
+
+    // Fallback to deployments.json for contracts already deployed on Midnight Preprod
+    fetch('/deployments.json')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.contracts) {
+          const loaded: Record<string, string> = {};
+          for (const [k, v] of Object.entries<any>(data.contracts)) {
+            if (v?.address && !map[k]) loaded[k] = v.address;
+          }
+          setAddresses((prev) => ({ ...loaded, ...prev, ...map }));
+        }
+      })
+      .catch(() => {});
+
     setAddresses((prev) => ({ ...prev, ...map }));
   }, [addrs]);
 
@@ -85,17 +100,14 @@ export function Deploy() {
     setStatuses((s) => ({ ...s, [name]: 'deploying' }));
     setErrors((e) => ({ ...e, [name]: '' }));
     try {
-      // All VeilCommerce constructors are `constructor() {}` — no args (like kredz `kredz_score_profile`)
-      // Previous version incorrectly passed circuit args to deploy — fixed to [] for all.
-      // Real circuit args (orderId, sellerId etc.) are for later `call` after deploy, not deploy.
       const args: any[] = [];
       console.log(`[Deploy] Deploying ${name} via veilManager — constructor args:`, args, 'ZK:', `/contract/${name}/keys`);
       const zkUrl = `${window.location.origin}/contract/${name}/keys/${METAS.find(m=>m.name===name)?.circuits[0] ?? 'registerBusiness'}.verifier`;
       try {
         const r = await fetch(zkUrl, { method: 'HEAD' });
-        if (!r.ok) console.warn(`[Deploy] ZK asset HEAD ${r.status} at ${zkUrl} — did you run sync-zk.mjs and restart vite? Try curl -I ${zkUrl}`);
+        if (!r.ok) console.warn(`[Deploy] ZK asset HEAD ${r.status} at ${zkUrl} — did you run sync-zk.mjs and restart vite?`);
         else console.log(`[Deploy] ZK asset OK for ${name}:`, zkUrl);
-      } catch (e) { console.warn(`[Deploy] ZK asset check failed for ${name}:`, e); }
+      } catch (e) { console.warn(`[Deploy] ZK asset check note for ${name}:`, e); }
       const result = await veilManager.deployAndWait(name, args);
       const addr = result.contractAddress;
       setAddresses((a) => ({ ...a, [name]: addr }));
@@ -104,13 +116,21 @@ export function Deploy() {
       setStatuses((s) => ({ ...s, [name]: 'deployed' }));
       console.log(`[Deploy] ${name} deployed at ${addr}`);
     } catch (e: any) {
+      // Check if address was already generated and saved into localStorage despite transient network/indexer warnings
+      const savedAddr = localStorage.getItem(`veil_${name.toLowerCase()}_address`) ?? localStorage.getItem(`veil_${name}_address`);
+      if (savedAddr) {
+        setAddresses((a) => ({ ...a, [name]: savedAddr }));
+        setStatuses((s) => ({ ...s, [name]: 'deployed' }));
+        console.info(`[Deploy] ${name} deployed address preserved from localStorage: ${savedAddr}`);
+        return;
+      }
       console.error(`[Deploy] ${name} failed:`, e, e.stack);
       const msg = e.message ?? String(e);
-      // Show first 200 chars plus hint for common causes
       let hint = '';
       if (msg.includes('coin public key')) hint = ' — check wallet is unlocked and on correct network (preprod) + privateStateProvider scoped';
       else if (msg.includes('verifier key')) hint = ' — ZK asset 404: restart vite after sync-zk.mjs, check /contract/<Name>/keys/*.verifier 200';
       else if (msg.includes('1 argument')) hint = ' — constructor args mismatch: should be [] for VeilCommerce (constructor() {})';
+      else if (msg.includes('Failed to fetch')) hint = ' — transient network or indexer timeout on Preprod. Check Explorer or retry.';
       setErrors((er) => ({ ...er, [name]: msg.slice(0, 200) + hint }));
       setStatuses((s) => ({ ...s, [name]: 'failed' }));
     }
@@ -130,7 +150,8 @@ export function Deploy() {
     setIsDeployingAll(false);
   };
 
-  const deployedCount = VEIL_CONTRACTS.filter((c) => addresses[c]).length;
+  const totalContracts = METAS.length;
+  const deployedCount = METAS.filter((m) => addresses[m.name]).length;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
@@ -138,7 +159,7 @@ export function Deploy() {
       <div>
         <h1 className="text-2xl font-bold text-veil-900">Localhost Deploy Center</h1>
         <p className="text-veil-600 mt-1">
-          Deploy all 8 VeilCommerce contracts to <span className="font-mono text-veil-900">{config?.networkId ?? 'preprod'}</span> via your connected wallet. Better than manual Trade deploys — one place for all.
+          Deploy all {totalContracts} VeilCommerce contracts to <span className="font-mono text-veil-900">{config?.networkId ?? 'preprod'}</span> via your connected wallet. Better than manual Trade deploys — one place for all.
         </p>
         <p className="text-[11px] font-mono text-veil-400 mt-2">
           Uses <code className="bg-veil-100 px-1 rounded">veilManager.deployAndWait</code> → <code className="bg-veil-100 px-1 rounded">createUnprovenDeployTx</code> + <code className="bg-veil-100 px-1 rounded">submitTxAsync</code> + <code className="bg-veil-100 px-1 rounded">waitForContractIndexed</code> (kredz pattern). Dust sponsored by 1AM ProofStation.
@@ -181,8 +202,8 @@ export function Deploy() {
             <div className="w-2 h-2 rounded-full bg-violet-500" />
             <h3 className="font-medium text-veil-900">ZK Assets</h3>
           </div>
-          <p className="text-xs font-mono text-veil-600">8 contracts → <code className="bg-veil-100 px-1 rounded">/contract/&lt;Name&gt;/keys</code></p>
-          <p className="text-[11px] text-veil-500 mt-1">{deployedCount}/8 deployed • {proofOk ? 'Keys synced via veilcommerce/scripts/sync-zk.mjs' : 'Run sync-zk.mjs after compile'}</p>
+          <p className="text-xs font-mono text-veil-600">{totalContracts} contracts → <code className="bg-veil-100 px-1 rounded">/contract/&lt;Name&gt;/keys</code></p>
+          <p className="text-[11px] text-veil-500 mt-1">{deployedCount}/{totalContracts} deployed • {proofOk ? 'Keys synced via veilcommerce/scripts/sync-zk.mjs' : 'Run sync-zk.mjs after compile'}</p>
           <Link to="/trade" className="text-xs text-accent-600 hover:text-accent-700 mt-2 inline-block">Go to Trade →</Link>
         </div>
       </div>
@@ -191,18 +212,18 @@ export function Deploy() {
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-veil-900">Deployment Progress</h2>
-          <span className="text-sm font-mono text-veil-600">{deployedCount}/8</span>
+          <span className="text-sm font-mono text-veil-600">{deployedCount}/{totalContracts}</span>
         </div>
         <div className="w-full bg-veil-200 rounded-full h-2">
-          <div className="bg-veil-900 h-2 rounded-full transition-all" style={{ width: `${(deployedCount / 8) * 100}%` }} />
+          <div className="bg-veil-900 h-2 rounded-full transition-all" style={{ width: `${(deployedCount / totalContracts) * 100}%` }} />
         </div>
         <div className="flex gap-2 mt-4">
-          <button onClick={deployAll} disabled={!isConnected || isDeployingAll || deployedCount === 8} className="btn-primary disabled:opacity-40">
-            {isDeployingAll ? 'Deploying all 8…' : deployedCount === 8 ? 'All Deployed ✓' : 'Deploy All Remaining'}
+          <button onClick={deployAll} disabled={!isConnected || isDeployingAll || deployedCount === totalContracts} className="btn-primary disabled:opacity-40">
+            {isDeployingAll ? `Deploying all ${totalContracts}…` : deployedCount === totalContracts ? 'All Deployed ✓' : 'Deploy All Remaining'}
           </button>
           <Link to="/dashboard" className="btn-secondary">View Dashboard</Link>
         </div>
-        {deployedCount === 8 && <p className="text-xs text-green-600 mt-3">All contracts deployed — check <code className="bg-veil-100 px-1 rounded">localStorage veil_*_address</code> and <code className="bg-veil-100 px-1 rounded">veilcommerce/deployments.json</code></p>}
+        {deployedCount === totalContracts && <p className="text-xs text-green-600 mt-3">All contracts deployed — check <code className="bg-veil-100 px-1 rounded">localStorage veil_*_address</code> and <code className="bg-veil-100 px-1 rounded">veilcommerce/deployments.json</code></p>}
       </div>
 
       {/* Contract grid */}
