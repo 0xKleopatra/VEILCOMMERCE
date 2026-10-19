@@ -95,6 +95,7 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 | Compliance           | Programmable ZK compliance                | Weighted policy evaluation + disclosure    |
 | Settlement           | Final settlement record                   | Custom (nullifier-gated)                   |
 | CredentialRegistry   | Private credentials + selective disclosure| Credence (presentation nullifiers)         |
+| AuditorRegistry      | ZK audit attestations & regulatory seals  | Selective disclosure + audit nullifiers    |
 
 ---
 
@@ -134,14 +135,15 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 6. Release     → Escrow released via ZK proof (nullifier prevents replay)
 7. Invoice     → Seller issues invoice (terms hashed on-chain)
 8. Finance     → Invoice financed (credit score proven ≥ threshold, never revealed)
-9. Settle      → Final settlement recorded with nullifier
+9. Audit/Seal  → Certified auditor seals trade attestation on-chain (nullifier-gated)
+10. Settle     → Final settlement recorded with nullifier
 ```
 
 ---
 
 ## Slide 9: Deployed on Midnight Preprod
 
-All **8 contracts** compiled and deployed on Midnight Preprod:
+All **9 contracts** compiled and deployed on Midnight Preprod:
 
 | Contract             | Status     |
 |----------------------|------------|
@@ -153,6 +155,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 | Compliance           | ✅ Deployed |
 | CredentialRegistry   | ✅ Deployed |
 | Settlement           | ✅ Deployed |
+| AuditorRegistry      | ✅ Deployed |
 
 **Live Demo:** https://veilcommerce-app.vercel.app/
 
