@@ -12,7 +12,17 @@ export default defineConfig({
     nodePolyfills({ include: ['buffer', 'events', 'stream', 'util'] })
   ],
   build: { target: 'esnext' },
-  server: { port: 3000, host: true },
+  server: {
+    port: 3000,
+    host: true,
+    proxy: {
+      '/api/v4/graphql': {
+        target: 'https://midnight-preprod.blockfrost.io/api/v0',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
   assetsInclude: ['**/*.wasm'],
   resolve: {
     alias: {
