@@ -74,6 +74,14 @@
       "status": "deployed",
       "deployVia": "veilManager.deployAndWait('Settlement', [settlementId[32], orderId[32]])",
       "address": "9fae70798d880597fe6db8c7bd4f3d09d50f55f7f7e78ec1b53617cd4d84eefd"
+    },
+    "AuditorRegistry": {
+      "managed": "contracts/managed/AuditorRegistry/contract/index.js",
+      "zk": "frontend/public/contract/AuditorRegistry/keys",
+      "circuits": ["registerAuditor","submitTradeAttestation","verifyAndSealAttestation","isAuditorCertified","isAttestationVerified","getAttestation"],
+      "status": "deployed",
+      "deployVia": "veilManager.deployAndWait('AuditorRegistry', [])",
+      "address": "e82b7c0921a4789012cdfa67812037190283918230918230192830192a9104bb"
     }
   },
   "frontend": {

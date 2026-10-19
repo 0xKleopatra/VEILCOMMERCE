@@ -12,6 +12,8 @@ import { Activity } from './pages/Activity';
 import { Settings } from './pages/Settings';
 import { Deploy } from './pages/Deploy';
 import { Landing } from './pages/Landing';
+import { Auditor } from './pages/Auditor';
+import { ZkStudio } from './pages/ZkStudio';
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
         <Route path="escrow" element={<Escrow />} />
         <Route path="invoices" element={<Invoices />} />
         <Route path="financing" element={<Financing />} />
+        <Route path="auditor" element={<Auditor />} />
+        <Route path="zk-studio" element={<ZkStudio />} />
         <Route path="compliance" element={<Compliance />} />
         <Route path="portfolio" element={<Portfolio />} />
         <Route path="activity" element={<Activity />} />

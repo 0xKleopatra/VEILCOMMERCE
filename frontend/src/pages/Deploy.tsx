@@ -35,6 +35,7 @@ const METAS: ContractMeta[] = [
   { name: 'Compliance', description: 'Jurisdiction policy + selective-disclosure auditor grants', circuits: ['attestCompliance','evaluateCompliance','grantDisclosure'], icon: ShieldIcon, color: 'bg-indigo-100 text-indigo-800' },
   { name: 'CredentialRegistry', description: 'Holder credential issuance & revocation', circuits: ['issueCredential','proveCredential','verifyCredential','revokeCredential'], icon: BadgeIcon, color: 'bg-pink-100 text-pink-800' },
   { name: 'Settlement', description: 'Trade & escrow-leg settlement + reconcile', circuits: ['settleTrade','settleEscrowLeg','reconcile'], icon: CheckCircleIcon, color: 'bg-green-100 text-green-800' },
+  { name: 'AuditorRegistry', description: 'Certified auditor governance & cryptographic trade seals', circuits: ['registerAuditor','submitTradeAttestation','verifyAndSealAttestation'], icon: ShieldIcon, color: 'bg-purple-100 text-purple-800' },
 ];
 
 export function Deploy() {

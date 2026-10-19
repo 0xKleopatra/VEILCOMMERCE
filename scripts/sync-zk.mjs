@@ -21,6 +21,7 @@ const CONTRACTS = [
   'Compliance',
   'CredentialRegistry',
   'Settlement',
+  'AuditorRegistry',
 ];
 
 if (!existsSync(managedRoot)) {

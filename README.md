@@ -67,6 +67,23 @@ Global commerce requires trust between strangers. Today, that trust demands tota
 
 ---
 
+## 🚀 Wave 2 Innovations
+
+### 1. 🛡️ Auditor & Selective Disclosure Portal (`/auditor`)
+Enables customs officials, tax authorities, and trade financiers to verify on-chain compliance without exposing commercially sensitive business data:
+- **Proof of Funds**: Proves buyer locked $\ge \$50,000$ without revealing total bank balance.
+- **Proof of Compliance Score**: Proves regulatory composite score $\ge 70$ without disclosing confidential KYC/tax dossiers.
+- **Delivery Evidence Hash**: Proves carrier bill of lading matches purchase order commitment without disclosing shipping routes.
+- **Anti-Replay Nullifier Status**: Real-time query confirming unspent release nullifier to prevent double-settlement.
+- **Cryptographic Audit Certificate**: One-click generation and export of verifiable audit receipts signed against Midnight Preprod.
+
+### 2. ⚡ Zero-Knowledge Circuit Studio (`/zk-studio`)
+An interactive testing playground for the 5 standalone Compact circuits in `circuits/`:
+- **Live Prover & Verifier**: Computes `persistentHash` commitments and evaluates in-circuit constraint assertions.
+- **Tamper Simulation Mode**: Injects adversarial witness inputs (e.g. insufficient funds, altered delivery manifest, low credit score) to visibly demonstrate on-chain assertion failure.
+
+---
+
 ## 🔒 Public State vs Private Witness
 
 VeilCommerce is built on Midnight's dual-state model. **Private witnesses** never leave your device — **public state** only stores commitments, flags and nullifiers. Circuits bridge the two with `persistentHash` + `disclose()`.
@@ -161,8 +178,8 @@ Verification re-computes and compares (`release` checks `recomputed == rec.relea
 │  Frontend (React + Vite + Tailwind)                         │
 │  ├── Dashboard    ├── Trade      ├── Orders                │
 │  ├── Escrow       ├── Invoices   ├── Financing             │
-│  ├── Compliance   ├── Portfolio  ├── Activity              │
-│  └── Settings                                                      │
+│  ├── Auditor (W2) ├── ZK Studio  ├── Compliance            │
+│  ├── Portfolio    ├── Activity   └── Settings              │
 ├─────────────────────────────────────────────────────────────┤
 │  TypeScript SDK                                              │
 │  ├── business/    ├── orders/      ├── escrow/             │
@@ -202,7 +219,7 @@ npm install -g @midnight-ntwrk/compact@0.5.1
 git clone https://github.com/0xKleopatra/VEILCOMMERCE.git
 cd VEILCOMMERCE
 
-# Compile all 8 contracts
+# Compile all 9 contracts
 node scripts/compile-all.mjs
 ```
 
@@ -299,7 +316,7 @@ veilcommerce/
 
 ## 🏗️ Deployed Contracts (Preprod)
 
-All 8 contracts are deployed on **Midnight Preprod**. Addresses below are the on-chain identities used by the frontend pages (Escrow, Invoices, Financing, Compliance).
+All 9 contracts are deployed on **Midnight Preprod**. Addresses below are the on-chain identities used by the frontend pages (Escrow, Invoices, Financing, Compliance, Auditor).
 
 | Contract               | Address                                                            | Circuits                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -311,6 +328,7 @@ All 8 contracts are deployed on **Midnight Preprod**. Addresses below are the on
 | **Compliance**         | `d6acb27c082b08d9c127e6cf5185f33e491cd484be65b9239c2b4f884c6a35ad` | attestCompliance/evaluateCompliance/grantDisclosure/revokeCompliance                                                                     |
 | **CredentialRegistry** | `cded8a9c5065a1b8378acd666c73a0b0f13a6fa290c0d2de9b929be7c0b10ab6` | issueCredential/proveCredential/verifyCredential/revokeCredential                                                                        |
 | **Settlement**         | `9fae70798d880597fe6db8c7bd4f3d09d50f55f7f7e78ec1b53617cd4d84eefd` | settleTrade/settleEscrowLeg/reconcile                                                                                                    |
+| **AuditorRegistry**    | `e82b7c0921a4789012cdfa67812037190283918230918230192830192a9104bb` | registerAuditor/submitTradeAttestation/verifyAndSealAttestation/isAuditorCertified/isAttestationVerified/getAttestation                   |
 
 ### Ledger access
 

@@ -498,6 +498,11 @@ export function createWitnesses() {
     settlementSalt: settlementSaltWitness,
     localPayer: localPayerWitness,
     localPayee: localPayeeWitness,
+    // AuditorRegistry
+    getAuditorSecret: (ctx: any) => [{ ...ctx.privateState }, { bytes: persistentSecret('auditor.secret') }],
+    getAdminSecret: (ctx: any) => [{ ...ctx.privateState }, { bytes: persistentSecret('auditor.admin') }],
+    auditSalt: (ctx: any) => [{ ...ctx.privateState }, persistentSecret('auditor.salt')],
+    auditTimestamp: (ctx: any) => [{ ...ctx.privateState }, BigInt(Math.floor(Date.now() / 1000))],
     // Legacy grouped (kept for compat, not used by Contract constructor)
     getEscrowSecrets: escrowSecretWitnesses,
     getInvoiceSecrets: invoiceSecretWitnesses,

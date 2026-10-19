@@ -134,6 +134,7 @@ export const VEIL_CONTRACTS = [
   'Compliance',
   'CredentialRegistry',
   'Settlement',
+  'AuditorRegistry',
 ] as const;
 export type VeilContractName = typeof VEIL_CONTRACTS[number];
 
@@ -352,6 +353,7 @@ const contractImporters: Record<VeilContractName, () => Promise<any>> = {
   Compliance: () => import('../../contracts/managed/Compliance/contract/index.js'),
   CredentialRegistry: () => import('../../contracts/managed/CredentialRegistry/contract/index.js'),
   Settlement: () => import('../../contracts/managed/Settlement/contract/index.js'),
+  AuditorRegistry: () => import('../../contracts/managed/AuditorRegistry/contract/index.js'),
 };
 
 export async function loadVeilContractModule(contractName: VeilContractName): Promise<any> {

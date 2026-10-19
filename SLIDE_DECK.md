@@ -61,8 +61,9 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 │              VEILCOMMERCE                     │
 ├──────────────────────────────────────────────┤
 │  Frontend (React + Vite + Tailwind)           │
-│  11 pages: Dashboard, Trade, Escrow,          │
-│  Invoices, Financing, Compliance, etc.        │
+│  13 pages: Dashboard, Trade, Escrow,          │
+│  Invoices, Financing, Auditor (W2),           │
+│  ZK Studio (W2), Compliance, etc.             │
 ├──────────────────────────────────────────────┤
 │  TypeScript SDK (9 modules)                   │
 │  business, orders, escrow, invoices,          │
@@ -106,7 +107,23 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 
 ---
 
-## Slide 7: End-to-End Trade Flow
+## Slide 7: Wave 2 Innovations
+
+### 1. Auditor & Selective Disclosure Portal (`/auditor`)
+- **Third-Party Inspection**: Customs, tax authorities, and trade financiers verify compliance without seeing private commercial preimages
+- **Proof of Funds**: Proves escrow lock $\ge \$50\text{k}$ without revealing bank balance
+- **Proof of Delivery**: Matches carrier waybill hash against PO commitment
+- **Nullifier Status**: Real-time query confirming unspent release nullifier
+- **Exportable Certificate**: One-click verifiable cryptographic audit receipt
+
+### 2. Zero-Knowledge Circuit Studio (`/zk-studio`)
+- **Interactive Workbench**: Test bench for all 5 standalone Compact circuits
+- **Live Proving**: Computes `persistentHash` commitments and evaluates in-circuit constraints
+- **Tamper Simulation**: Simulates adversarial witness fraud to demonstrate on-chain rejection
+
+---
+
+## Slide 8: End-to-End Trade Flow
 
 ```
 1. Register    → Business registers with ZK-verified identity
@@ -122,7 +139,7 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 
 ---
 
-## Slide 8: Deployed on Midnight Preprod
+## Slide 9: Deployed on Midnight Preprod
 
 All **8 contracts** compiled and deployed on Midnight Preprod:
 
@@ -141,7 +158,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 9: Testing & Quality
+## Slide 10: Testing & Quality
 
 - **Unit tests** — All 8 contracts with 100% circuit coverage
 - **Integration tests** — Cross-contract workflows
@@ -151,7 +168,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 10: Business Model
+## Slide 11: Business Model
 
 | Revenue Stream          | Rate                     |
 |-------------------------|--------------------------|
@@ -164,7 +181,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 11: Target Market & Adoption Path
+## Slide 12: Target Market & Adoption Path
 
 ### Primary: SME Exporters in Emerging Markets
 - Nigeria, Kenya, Vietnam, Bangladesh — high trade volume, limited financial infrastructure
@@ -178,7 +195,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 12: Roadmap
+## Slide 13: Roadmap
 
 | Phase     | Timeline      | Milestones                                            |
 |-----------|---------------|-------------------------------------------------------|
@@ -189,7 +206,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 13: Tech Stack
+## Slide 14: Tech Stack
 
 | Component  | Technology               |
 |------------|--------------------------|
@@ -203,7 +220,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 14: Why Midnight?
+## Slide 15: Why Midnight?
 
 - **Dual-ledger model** — public state + private witnesses natively supported
 - **Compact language** — purpose-built for ZK smart contracts
@@ -214,7 +231,7 @@ All **8 contracts** compiled and deployed on Midnight Preprod:
 
 ---
 
-## Slide 15: Team & Links
+## Slide 16: Team & Links
 
 - **GitHub:** https://github.com/0xKleopatra/VEILCOMMERCE
 - **Live Demo:** https://veilcommerce-app.vercel.app/

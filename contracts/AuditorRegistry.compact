@@ -1,0 +1,203 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+// =============================================================================
+// VeilCommerce — AuditorRegistry (Dedicated On-Chain Audit & Verification)
+// -----------------------------------------------------------------------------
+// Real Compact Smart Contract for Wave 2:
+// Governs authorized trade auditors, regulatory inspectors, and selective-
+// disclosure cryptographic audit certificates.
+//
+// Allows:
+//   - Authority to certify/revoke auditors
+//   - Traders to register trade attestations (Escrow, PO, Compliance bindings)
+//   - Certified auditors to verify and seal audit attestations on-chain
+//   - Public verification of audit seals via persistentHash & unspent nullifiers
+//
+// Private: auditor secrets, trader secrets, audit salt
+// Public : auditorId, tradeId, commitmentHash, status, verificationSeal, nullifiers
+// =============================================================================
+
+export enum AuditorStatus { Inactive, Certified, Suspended, Revoked }
+export enum AttestationStatus { Pending, Verified, Rejected, Expired }
+
+export struct AuditorSecret {
+  bytes: Bytes<32>;
+}
+
+export struct AuditAttestationRecord {
+  attestationId: Bytes<32>;
+  tradeId: Bytes<32>;
+  auditorId: Bytes<32>;
+  subjectCommitment: Bytes<32>;
+  verificationSeal: Bytes<32>;
+  status: AttestationStatus;
+  certifiedAt: Uint<64>;
+  expiresAt: Uint<64>;
+}
+
+struct AttestationBinding {
+  tradeId: Bytes<32>;
+  escrowCommitment: Bytes<32>;
+  complianceCommitment: Bytes<32>;
+  salt: Bytes<32>;
+}
+
+// Ledger State (Stored on Midnight chain)
+export ledger totalAuditors: Counter;
+export ledger totalAttestations: Counter;
+export ledger auditors: Map<Bytes<32>, AuditorStatus>;
+export ledger certifiedAuditors: Set<Bytes<32>>;
+export ledger attestations: Map<Bytes<32>, AuditAttestationRecord>;
+export ledger verifiedAttestations: Set<Bytes<32>>;
+export ledger tradeAttestationMap: Map<Bytes<32>, Bytes<32>>;
+export ledger usedAuditNullifiers: Set<Bytes<32>>;
+
+// Sealed Admin
+sealed ledger registryAdmin: Bytes<32>;
+
+// Witnesses
+witness getAuditorSecret(): AuditorSecret;
+witness getAdminSecret(): AuditorSecret;
+witness auditSalt(): Bytes<32>;
+witness auditTimestamp(): Uint<64>;
+
+// Identity Derivations
+pure circuit deriveAuditorId(sk: AuditorSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:auditor:id:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit deriveAdminId(sk: AuditorSecret): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "veil:auditor:admin:v1"),
+    sk.bytes
+  ]);
+}
+
+pure circuit computeAuditNullifier(sk: AuditorSecret, attestationId: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "veil:auditor:nullifier:v1"),
+    sk.bytes,
+    attestationId
+  ]);
+}
+
+// Constructor
+constructor() {
+  const sk = getAdminSecret();
+  registryAdmin = disclose(deriveAdminId(sk));
+}
+
+// ---------------------------------------------------------------------------
+// Circuits: Admin Auditor Management
+// ---------------------------------------------------------------------------
+
+export circuit registerAuditor(auditorId: Bytes<32>): [] {
+  const adminSecret = getAdminSecret();
+  assert(disclose(deriveAdminId(adminSecret) == registryAdmin), "Only admin can register auditors");
+
+  const disclosedAuditor = disclose(auditorId);
+  auditors.insert(disclosedAuditor, AuditorStatus.Certified);
+  certifiedAuditors.insert(disclosedAuditor);
+  totalAuditors.increment(1);
+}
+
+export circuit revokeAuditor(auditorId: Bytes<32>): [] {
+  const adminSecret = getAdminSecret();
+  assert(disclose(deriveAdminId(adminSecret) == registryAdmin), "Only admin can revoke auditors");
+
+  const disclosedAuditor = disclose(auditorId);
+  auditors.insert(disclosedAuditor, AuditorStatus.Revoked);
+}
+
+// ---------------------------------------------------------------------------
+// Circuits: Trade Audit Attestations
+// ---------------------------------------------------------------------------
+
+export circuit submitTradeAttestation(
+  attestationId: Bytes<32>,
+  tradeId: Bytes<32>,
+  subjectCommitment: Bytes<32>,
+  expiry: Uint<64>
+): [] {
+  const disclosedAttestationId = disclose(attestationId);
+  assert(disclose(!attestations.member(disclosedAttestationId)), "Attestation ID already exists");
+
+  const salt = auditSalt();
+  const ts = auditTimestamp();
+
+  const record = AuditAttestationRecord {
+    attestationId: disclosedAttestationId,
+    tradeId: disclose(tradeId),
+    auditorId: pad(32, ""),
+    subjectCommitment: disclose(subjectCommitment),
+    verificationSeal: pad(32, ""),
+    status: AttestationStatus.Pending,
+    certifiedAt: ts,
+    expiresAt: disclose(expiry)
+  };
+
+  attestations.insert(disclosedAttestationId, disclose(record));
+  tradeAttestationMap.insert(disclose(tradeId), disclosedAttestationId);
+  totalAttestations.increment(1);
+}
+
+export circuit verifyAndSealAttestation(
+  attestationId: Bytes<32>,
+  verificationSeal: Bytes<32>
+): [] {
+  const auditorSecret = getAuditorSecret();
+  const auditorId = deriveAuditorId(auditorSecret);
+  const disclosedAuditor = disclose(auditorId);
+
+  // Must be certified auditor
+  assert(disclose(certifiedAuditors.member(disclosedAuditor)), "Auditor not certified");
+
+  const disclosedAttestationId = disclose(attestationId);
+  assert(disclose(attestations.member(disclosedAttestationId)), "Attestation not found");
+
+  const prev = attestations.lookup(disclosedAttestationId);
+  assert(disclose(prev.status == AttestationStatus.Pending), "Attestation not in pending state");
+
+  // Replay prevention via nullifier
+  const nullifier = computeAuditNullifier(auditorSecret, attestationId);
+  assert(disclose(!usedAuditNullifiers.member(disclose(nullifier))), "Audit nullifier already consumed");
+  usedAuditNullifiers.insert(disclose(nullifier));
+
+  const ts = auditTimestamp();
+  const updated = AuditAttestationRecord {
+    attestationId: prev.attestationId,
+    tradeId: prev.tradeId,
+    auditorId: disclosedAuditor,
+    subjectCommitment: prev.subjectCommitment,
+    verificationSeal: disclose(verificationSeal),
+    status: AttestationStatus.Verified,
+    certifiedAt: ts,
+    expiresAt: prev.expiresAt
+  };
+
+  attestations.insert(disclosedAttestationId, disclose(updated));
+  verifiedAttestations.insert(disclosedAttestationId);
+}
+
+// ---------------------------------------------------------------------------
+// Circuits: Queries & Verification
+// ---------------------------------------------------------------------------
+
+export circuit isAuditorCertified(auditorId: Bytes<32>): Boolean {
+  return certifiedAuditors.member(disclose(auditorId));
+}
+
+export circuit isAttestationVerified(attestationId: Bytes<32>): Boolean {
+  return verifiedAttestations.member(disclose(attestationId));
+}
+
+export circuit getAttestation(attestationId: Bytes<32>): AuditAttestationRecord {
+  const disclosedId = disclose(attestationId);
+  assert(disclose(attestations.member(disclosedId)), "Attestation not found");
+  return attestations.lookup(disclosedId);
+}

@@ -22,6 +22,7 @@ const CONTRACTS = [
   'Compliance',
   'CredentialRegistry',
   'Settlement',
+  'AuditorRegistry',
 ];
 
 function checkCompactVersion() {
