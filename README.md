@@ -199,34 +199,24 @@ npm install -g @midnight-ntwrk/compact@0.5.1
 ### 1. Clone & Build Contracts
 
 ```bash
-git clone <repo>
-cd veilcommerce/contracts
+git clone https://github.com/0xKleopatra/VEILCOMMERCE.git
+cd VEILCOMMERCE
 
 # Compile all 8 contracts
-for f in *.compact; do
-  compact compile "$f" "../managed/$(basename $f .compact)"
-done
+node scripts/compile-all.mjs
 ```
 
 ### 2. Sync ZK Assets
 
 ```bash
-# From project root
-mkdir -p veilcommerce/frontend/public/contract
-for name in BusinessRegistry PurchaseOrder Escrow Invoice Financing Compliance Settlement CredentialRegistry; do
-  cp -r veilcommerce/contracts/managed/$name/keys \
-        veilcommerce/frontend/public/contract/$name/
-  cp -r veilcommerce/contracts/managed/$name/zkir \
-        veilcommerce/frontend/public/contract/$name/
-done
-cp -r veilcommerce/contracts/managed/* \
-      veilcommerce/frontend/contracts/
+# Sync prover/verifier keys and ZKIR to frontend
+node scripts/sync-zk.mjs
 ```
 
 ### 3. Run Frontend
 
 ```bash
-cd veilcommerce/frontend
+cd frontend
 npm install
 npm run dev
 # → http://localhost:3000
@@ -307,8 +297,6 @@ veilcommerce/
 
 ---
 
----
-
 ## 🏗️ Deployed Contracts (Preprod)
 
 All 8 contracts are deployed on **Midnight Preprod**. Addresses below are the on-chain identities used by the frontend pages (Escrow, Invoices, Financing, Compliance).
@@ -354,13 +342,13 @@ await veilManager.deployAndWait("Escrow", [
 
 ```bash
 # Unit tests
-npm test -- veilcommerce/tests/contracts/
+npm test -- tests/contracts/
 
 # Integration tests
-npm test -- veilcommerce/tests/integration/
+npm test -- tests/integration/
 
 # Complete E2E flow ($50k Nigerian → Chinese trade)
-npm test -- veilcommerce/tests/integration/e2e_trade_flow.test.ts
+npm test -- tests/integration/e2e_trade_flow.test.ts
 ```
 
 ### Test Coverage Targets
@@ -484,4 +472,3 @@ Built on patterns from the Midnight ecosystem:
 
 **VeilCommerce — Trust without total transparency.**
 
-# Updated Tue Sep 15 10:29:26 AM WAT 2026
