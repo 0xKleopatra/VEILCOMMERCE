@@ -1,5 +1,4 @@
 [![CI](https://github.com/0xKleopatra/VEILCOMMERCE/actions/workflows/ci.yml/badge.svg)](https://github.com/0xKleopatra/VEILCOMMERCE/actions/workflows/ci.yml)
-[![Wave Hacks](https://img.shields.io/badge/Wave%20Hacks-Build%20Privacy--First%20Apps%20on%20Midnight-blueviolet?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0tMSAxNEg5VjhIMTF2OHptNCAwaC0yVjhoMnY4eiIvPjwvc3ZnPg==)](https://app.akindo.io/wave-hacks/jaMZjqPOBsLXvjdG)
 
 # VeilCommerce
 
@@ -50,11 +49,11 @@ Global commerce requires trust between strangers. Today, that trust demands tota
 | Module                 | Description                                | Midnight Pattern                                  |
 | ---------------------- | ------------------------------------------ | ------------------------------------------------- |
 | **BusinessRegistry**   | Private business identity + verification   | Credence (domain-separated keys, nullifiers)      |
-| **PurchaseOrder**      | Private PO lifecycle with ZK-gated flags   | dMarket (commitments, state machine)              |
-| **Escrow**             | Conditional payment with ZK release        | Midnight Escrow (persistentCommit, nullifiers)    |
-| **Invoice**            | Verified private receivable                | Privoice (commitment, acknowledgment, settlement) |
-| **Financing**          | Private invoice financing + risk proof     | Kredz (ScoreData hash, prove_tier) + RWA          |
-| **Compliance**         | Programmable ZK compliance                 | ZK-Judge (weighted scoring) + DPO2U               |
+| **PurchaseOrder**      | Private PO lifecycle with ZK-gated flags   | Private order commitments + state machine        |
+| **Escrow**             | Conditional payment with ZK release        | Private escrow lifecycle with commitments         |
+| **Invoice**            | Verified private receivable                | Private receivable commitments + settlement      |
+| **Financing**          | Private invoice financing + risk proof     | Private credit scoring + risk verification        |
+| **Compliance**         | Programmable ZK compliance                 | Weighted policy evaluation + selective disclosure |
 | **Settlement**         | Final settlement record                    | Custom (nullifier-gated)                          |
 | **CredentialRegistry** | Private credentials + selective disclosure | Credence (presentation nullifiers)                |
 
@@ -67,7 +66,7 @@ Global commerce requires trust between strangers. Today, that trust demands tota
 
 ---
 
-## 🚀 Wave 2 Innovations
+## ✨ Product Highlights
 
 ### 1. 🛡️ Auditor & Selective Disclosure Portal (`/auditor`)
 Enables customs officials, tax authorities, and trade financiers to verify on-chain compliance without exposing commercially sensitive business data:
@@ -450,22 +449,6 @@ npm test -- tests/integration/e2e_trade_flow.test.ts
 ## 📄 License
 
 Apache License 2.0 — see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-Built on patterns from the Midnight ecosystem:
-
-- **Privoice** — Private invoice commitments
-- **Midnight Escrow** — Conditional payments
-- **Credence** — Private credentials + nullifiers
-- **Kredz** — Privacy-preserving credit identity
-- **Real World Assets** — Shielded assets + RWA
-- **dMarket** — Marketplace + escrow workflow
-- **SilentLedger** — Private orderbook
-- **Midnight-ZK-Judge** — ZK compliance scoring
-- **DPO2U** — ZK compliance attestation
 
 ---
 

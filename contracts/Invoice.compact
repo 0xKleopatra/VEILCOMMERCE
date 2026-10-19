@@ -5,8 +5,8 @@ import CompactStandardLibrary;
 // =============================================================================
 // VeilCommerce — Invoice (Private Invoicing)
 // -----------------------------------------------------------------------------
-// Privoice pattern → verified private receivable.
-// Invoice never goes on-chain. Only commitment + lifecycle state do.
+// Verified private receivable. Invoice never goes on-chain. Only commitment +
+// lifecycle state do.
 //
 // Private: amount, buyer partyId, memo, salt
 // Public : invoiceId, commitment, issuerId, order linkage, acknowledged,

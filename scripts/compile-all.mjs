@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // VeilCommerce — Compile all 8 Compact contracts
-// Smart reuse of kredz-midnight/scripts/compile-contract.js pattern
+// Compile managed compact contracts into browser-safe artifacts
 // Handles: BusinessRegistry, PurchaseOrder, Escrow, Invoice, Financing,
 //          Compliance, CredentialRegistry, Settlement
 

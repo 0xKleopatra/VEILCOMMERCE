@@ -5,7 +5,7 @@ import CompactStandardLibrary;
 // =============================================================================
 // VeilCommerce — Financing (Private Invoice Financing / Trade Finance)
 // -----------------------------------------------------------------------------
-// Kredz + RWA patterns → verified private receivable as financeable asset.
+// Private invoice financing: verified receivable backed by a ZK risk proof.
 // =============================================================================
 
 export enum FinancingStatus { Requested, Funded, Repaid, Defaulted, Cancelled }

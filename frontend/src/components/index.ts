@@ -18,7 +18,7 @@ export { VerificationDot, VerificationBadge, VerificationRow } from './Verificat
 export { StatCard, MetricCard, FeatureCard } from './StatCard';
 export { Stepper } from './Stepper';
 
-// Wallet — 1AM (dust-free) + Lace (DApp Connector) — Midnight-Skills-main/.agents/skills
+// Wallet — 1AM (dust-free) + Lace (DApp Connector)
 export { default as WalletConnect, WalletCard as WalletCardConnect } from './WalletConnect';
 export { default as WalletCard } from './WalletCard';
 export { WalletPicker } from './WalletPicker';

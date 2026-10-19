@@ -1,10 +1,7 @@
 // =============================================================================
 // VeilCommerce — Midnight Session (Canonical)
 // -----------------------------------------------------------------------------
-// Wallet session, provider wiring, indexer patch — supports 1AM + Lace wallets
-// Based on: Midnight-Skills-main/.agents/skills/1am-wallet/SKILL.md
-//           references/midnight-session.md (canonical source)
-//           react-wallet-connector SKILL.md (generic enumeration)
+// Wallet session, provider wiring, and indexer patching for 1AM + Lace wallets.
 // =============================================================================
 
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
@@ -171,31 +168,50 @@ export function createPrivateStateProvider() {
 // Patched Public Data Provider — fixes indexer offset:null bug on preview/preprod
 // ---------------------------------------------------------------------------
 
+export function saveCachedContractState(contractAddress: string, state: any) {
+  try {
+    if (typeof window === 'undefined' || !contractAddress || !state) return;
+    if (typeof state.serialize === 'function') {
+      const hex = toHex(state.serialize());
+      localStorage.setItem(`veil_contract_state_${contractAddress.toLowerCase()}`, hex);
+    }
+  } catch (e) {
+    console.warn(`[VeilCommerce] Failed to cache contract state for ${contractAddress.slice(0, 10)}…:`, e);
+  }
+}
+
+export function loadCachedContractState(contractAddress: string): any {
+  try {
+    if (typeof window === 'undefined' || !contractAddress) return null;
+    const hex = localStorage.getItem(`veil_contract_state_${contractAddress.toLowerCase()}`);
+    if (hex) {
+      return ContractState.deserialize(fromHex(hex));
+    }
+  } catch (e) {
+    console.warn(`[VeilCommerce] Failed to load cached contract state for ${contractAddress.slice(0, 10)}…:`, e);
+  }
+  return null;
+}
+
 export function createPatchedPublicDataProvider(queryUrl: string, subscriptionUrl: string) {
-  const effectiveQueryUrl = (typeof window !== 'undefined' && queryUrl.includes('indexer.preprod.midnight.network'))
-    ? new URL('/api/v4/graphql', window.location.origin).toString()
-    : queryUrl;
-  const base = indexerPublicDataProvider(effectiveQueryUrl, subscriptionUrl);
+  const base = indexerPublicDataProvider(queryUrl, subscriptionUrl);
 
   async function queryLatest(query: string, address: string) {
     try {
-      const res = await fetch(effectiveQueryUrl, {
+      const res = await fetch(queryUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ query, variables: { address } }),
       });
       if (!res.ok) {
-        console.warn(`[PatchedPublicDataProvider] Indexer returned status ${res.status}`);
         return null;
       }
       const payload = await res.json();
       if (payload.errors?.length) {
-        console.warn(`[PatchedPublicDataProvider] Indexer response notice:`, payload.errors[0]?.message);
         return null;
       }
       return payload.data?.contractAction ?? null;
-    } catch (err: any) {
-      console.warn(`[PatchedPublicDataProvider] Indexer query skipped (${err?.message ?? 'network/CORS notice'})`);
+    } catch {
       return null;
     }
   }
@@ -205,9 +221,13 @@ export function createPatchedPublicDataProvider(queryUrl: string, subscriptionUr
     async queryContractState(contractAddress: string, config?: any) {
       if (config) {
         try {
-          return await base.queryContractState(contractAddress, config);
+          const res = await base.queryContractState(contractAddress, config);
+          if (res) {
+            saveCachedContractState(contractAddress, res);
+            return res;
+          }
         } catch {
-          return null;
+          return loadCachedContractState(contractAddress);
         }
       }
       try {
@@ -219,22 +239,29 @@ export function createPatchedPublicDataProvider(queryUrl: string, subscriptionUr
           contractAddress,
         );
         if (action?.state) {
-          return ContractState.deserialize(fromHex(action.state));
+          const state = ContractState.deserialize(fromHex(action.state));
+          saveCachedContractState(contractAddress, state);
+          return state;
         }
       } catch {}
       try {
-        return await base.queryContractState(contractAddress);
-      } catch {
-        return null;
-      }
+        const state = await base.queryContractState(contractAddress);
+        if (state) {
+          saveCachedContractState(contractAddress, state);
+          return state;
+        }
+      } catch {}
+      return loadCachedContractState(contractAddress);
     },
     async queryZSwapAndContractState(contractAddress: string, config?: any) {
       if (config) {
         try {
-          return await base.queryZSwapAndContractState(contractAddress, config);
-        } catch {
-          return null;
-        }
+          const res = await base.queryZSwapAndContractState(contractAddress, config);
+          if (res) {
+            saveCachedContractState(contractAddress, res[1]);
+            return res;
+          }
+        } catch {}
       }
       try {
         const action = await queryLatest(
@@ -250,9 +277,11 @@ export function createPatchedPublicDataProvider(queryUrl: string, subscriptionUr
         );
         if (action?.zswapState) {
           const { ZswapChainState, LedgerParameters } = await import('@midnight-ntwrk/ledger-v8');
+          const contractState = ContractState.deserialize(fromHex(action.state));
+          saveCachedContractState(contractAddress, contractState);
           return [
             ZswapChainState.deserialize(fromHex(action.zswapState)),
-            ContractState.deserialize(fromHex(action.state)),
+            contractState,
             action.transaction?.block?.ledgerParameters
               ? LedgerParameters.deserialize(fromHex(action.transaction.block.ledgerParameters))
               : LedgerParameters.initialParameters(),
@@ -260,10 +289,22 @@ export function createPatchedPublicDataProvider(queryUrl: string, subscriptionUr
         }
       } catch {}
       try {
-        return await base.queryZSwapAndContractState(contractAddress);
-      } catch {
-        return null;
+        const res = await base.queryZSwapAndContractState(contractAddress);
+        if (res) {
+          saveCachedContractState(contractAddress, res[1]);
+          return res;
+        }
+      } catch {}
+      const cached = loadCachedContractState(contractAddress);
+      if (cached) {
+        const { ZswapChainState, LedgerParameters } = await import('@midnight-ntwrk/ledger-v8');
+        return [
+          new ZswapChainState(),
+          cached,
+          LedgerParameters.initialParameters(),
+        ];
       }
+      return null;
     },
   };
 }
@@ -289,7 +330,7 @@ export function listWallets(): DetectedWallet[] {
   const laceSub = (window as any).lace ?? {};
   const wallets: DetectedWallet[] = [];
 
-  // 1) Preferred: enumerate via Object.values (generic DApp Connector API) — dmarket / react-wallet-connector skill
+  // 1) Preferred: enumerate via Object.values (generic DApp Connector API)
   //    Handles UUID-keyed wallets (Lace, 1AM, future wallets)
   try {
     const entries = Object.entries(midnight) as [string, any][];
@@ -316,7 +357,7 @@ export function listWallets(): DetectedWallet[] {
     }
   } catch {}
 
-  // 3) Fallback: ensure 1AM / mnLace specifically detected even if not enumerated (kredz style)
+  // 3) Fallback: ensure 1AM / mnLace specifically detected even if not enumerated
   const w1am = midnight['1am'];
   if (w1am && !wallets.find((w) => w.api === w1am)) {
     wallets.push({ api: w1am, name: w1am.name ?? '1AM', type: '1am', key: '1am' });

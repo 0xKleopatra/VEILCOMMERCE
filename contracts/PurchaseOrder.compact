@@ -5,7 +5,7 @@ import CompactStandardLibrary;
 // =============================================================================
 // VeilCommerce — PurchaseOrder
 // -----------------------------------------------------------------------------
-// dMarket workflow: DISCOVER → VERIFY → NEGOTIATE → PO → ESCROW → SHIP →
+// Contract workflow: DISCOVER → VERIFY → NEGOTIATE → PO → ESCROW → SHIP →
 // VERIFY → SETTLE → FINANCE
 //
 // Private: exact quantity, unit price, commercial terms, destination

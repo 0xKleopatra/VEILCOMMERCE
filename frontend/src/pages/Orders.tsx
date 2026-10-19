@@ -67,7 +67,7 @@ export function Orders() {
         </div>
       </div>
 
-      {/* Real ledger query — like privoice checkpoint.ts + kredz dashboard */}
+      {/* Real ledger query for on-chain order state */}
       <div className="card overflow-hidden">
         {poQuery.loading ? (
           <div className="p-12 text-center">

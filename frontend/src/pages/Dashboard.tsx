@@ -18,7 +18,6 @@ export function Dashboard() {
   const totalOrders = (poLedger.data as any)?.totalOrders ?? 0;
   const totalEscrows = (escrowLedger.data as any)?.totalEscrows ?? 0;
 
-  // Wallet gate — follows Midnight-Skills pattern: show connect CTA if not connected
   if (!isConnected) {
     return (
       <div className="space-y-8 animate-fade-in">
@@ -67,7 +66,7 @@ export function Dashboard() {
         </Link>
       </div>
 
-      {/* Active Deals — real ledger query via patched indexer (privoice checkpoint pattern) */}
+      {/* Active Deals — real ledger query via patched indexer */}
       <section className="card p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-veil-900">Active Deals</h2>

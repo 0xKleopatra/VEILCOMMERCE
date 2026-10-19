@@ -1,5 +1,4 @@
 // VeilCommerce — Ledger Query Hooks (Real Indexer, No Mocks)
-// Smart reuse of privoice checkpoint.ts + kredz dashboard + silentLedger orderbook queries
 // Each hook queries a specific VeilCommerce contract's ledger via patched indexer
 
 import { useEffect, useState, useCallback } from 'react';
@@ -43,7 +42,7 @@ export function useVeilQuery<T = any>(contractName: VeilContractName | null, con
   return { data, loading, error, refresh };
 }
 
-// Convenience: read addresses from localStorage (kredz pattern: kredz_contract_address)
+// Convenience: read addresses from localStorage for deployed contract records
 export function useStoredAddresses() {
   const readAll = () => ({
     purchaseOrder: localStorage.getItem('veil_purchaseorder_address') ?? localStorage.getItem('veil_purchaseOrder_address'),
@@ -66,7 +65,7 @@ export function useStoredAddresses() {
   return addrs;
 }
 
-// Dashboard aggregates — like kredz dashboard layer breakdown
+// Dashboard aggregates for ledger-backed summaries
 export function useDashboardStats() {
   const addrs = useStoredAddresses();
   const po = useVeilQuery(addrs.purchaseOrder ? 'PurchaseOrder' : null, addrs.purchaseOrder);

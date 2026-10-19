@@ -87,12 +87,12 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 
 | Module               | What It Does                              | Midnight Pattern Used                      |
 |----------------------|-------------------------------------------|--------------------------------------------|
-| BusinessRegistry     | Private business identity + verification  | Credence (domain-separated keys)           |
-| PurchaseOrder        | Private PO lifecycle with ZK-gated flags  | dMarket (commitments, state machine)       |
-| Escrow               | Conditional payment with ZK release       | Midnight Escrow (persistentCommit)         |
-| Invoice              | Verified private receivable               | Privoice (commitment, acknowledgment)      |
-| Financing            | Private invoice financing + risk proof    | Kredz (ScoreData hash) + RWA              |
-| Compliance           | Programmable ZK compliance                | ZK-Judge (weighted scoring) + DPO2U       |
+| BusinessRegistry     | Private business identity + verification  | Credence-style domain separation           |
+| PurchaseOrder        | Private PO lifecycle with ZK-gated flags  | Private order commitments + state machine  |
+| Escrow               | Conditional payment with ZK release       | Private escrow lifecycle                   |
+| Invoice              | Verified private receivable               | Private receivable commitments            |
+| Financing            | Private invoice financing + risk proof    | Private credit score + risk proof         |
+| Compliance           | Programmable ZK compliance                | Weighted policy evaluation + disclosure    |
 | Settlement           | Final settlement record                   | Custom (nullifier-gated)                   |
 | CredentialRegistry   | Private credentials + selective disclosure| Credence (presentation nullifiers)         |
 
@@ -107,7 +107,7 @@ balance ≥ req  → assert()         → true/false → disclose() → ✓ Fund
 
 ---
 
-## Slide 7: Wave 2 Innovations
+## Slide 7: Product Highlights
 
 ### 1. Auditor & Selective Disclosure Portal (`/auditor`)
 - **Third-Party Inspection**: Customs, tax authorities, and trade financiers verify compliance without seeing private commercial preimages

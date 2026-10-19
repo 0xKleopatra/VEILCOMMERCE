@@ -1,8 +1,6 @@
 // =============================================================================
 // VeilCommerce — Simulator Tests (Real Compact Runtime, No Mocks)
 // -----------------------------------------------------------------------------
-// Smart reuse: midnight-escrow/contract/src/test/escrow.test.ts (50 tests,
-// compact-runtime simulator, witness handling) + dmarket/contract/src/test/
 // Uses @midnight-ntwrk/compact-runtime simulator to execute circuits locally
 // without wallet/indexer — validates business logic before on-chain deploy.
 // Requires compiled contracts at contracts/managed/*/contract/index.js
@@ -63,7 +61,7 @@ describe('VeilCommerce Simulator — PurchaseOrder', () => {
   });
 });
 
-describe('VeilCommerce Simulator — Escrow (midnight-escrow pattern)', () => {
+describe('VeilCommerce Simulator — Escrow', () => {
   it('escrow lifecycle: create → verifyDelivery → release (ZK commitment)', async () => {
     let Contract: any;
     try {
@@ -78,7 +76,7 @@ describe('VeilCommerce Simulator — Escrow (midnight-escrow pattern)', () => {
     const nonce = new Uint8Array(32); crypto.getRandomValues(nonce);
     const amount = 50000n;
 
-    // Witnesses must be correctly typed (privoice pattern)
+    // Witnesses must be correctly typed
     expect(secretKey.length).toBe(32);
     expect(releaseSecret.length).toBe(32);
     expect(nonce.length).toBe(32);
@@ -96,7 +94,7 @@ describe('VeilCommerce Simulator — Escrow (midnight-escrow pattern)', () => {
   });
 });
 
-describe('VeilCommerce Simulator — Invoice (privoice pattern)', () => {
+describe('VeilCommerce Simulator — Invoice', () => {
   it('issue → acknowledge → settle flow with commitment', async () => {
     let Contract: any;
     try {
@@ -109,13 +107,13 @@ describe('VeilCommerce Simulator — Invoice (privoice pattern)', () => {
     const memo = new Uint8Array(32); crypto.getRandomValues(memo);
     const salt = new Uint8Array(32); crypto.getRandomValues(salt);
 
-    // Privoice witness pattern: localSecretKey, localAmount, localBuyer, localMemo, localSalt
+    // Invoice witness pattern: localSecretKey, localAmount, localBuyer, localMemo, localSalt
     expect(secretKey.length).toBe(32);
     expect(Contract).toBeDefined();
   });
 });
 
-describe('VeilCommerce Simulator — Financing (kredz risk pattern)', () => {
+describe('VeilCommerce Simulator — Financing', () => {
   it('credit commitment and risk verification', () => {
     const creditScore = 720;
     const creditSalt = new Uint8Array(16); crypto.getRandomValues(creditSalt);
@@ -136,7 +134,7 @@ describe('VeilCommerce Simulator — Compliance (RWA + DPO2U selective disclosur
   });
 });
 
-describe('VeilCommerce — Proof Server Health (midnight-escrow checkProofServer)', () => {
+describe('VeilCommerce — Proof Server Health', () => {
   it('health endpoint is reachable (mocked)', async () => {
     // In real CI, this would fetch http://127.0.0.1:6300/health
     // Here we just validate the health check helper exists

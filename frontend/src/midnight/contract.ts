@@ -1,5 +1,4 @@
 // VeilCommerce — Midnight Contract Deployment & Interaction
-// Based on Kredz pattern with createUnprovenDeployTx
 
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';

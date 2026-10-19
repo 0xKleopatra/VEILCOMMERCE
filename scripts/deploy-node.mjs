@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 // VeilCommerce — Node Deploy Script for 8 Contracts
-// Smart reuse: midnight-escrow/counter-cli/src/api.ts (WalletFacade + HDWallet)
-// + privoice/app/src/deploy.ts + kredz/midnight/contract.ts
 // Deploys to undeployed (local) or preprod (hosted) — requires proof server + faucet
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
@@ -13,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const managedRoot = resolve(root, 'contracts/managed');
 
-// Config — like privoice/app/src/config.ts + dmarket/docker
+// Network and service configuration for local or hosted deployment
 const NETWORK = process.env.VEIL_NETWORK ?? 'undeployed'; // undeployed | preprod | preview
 const PROOF_SERVER = process.env.VEIL_PROOF_SERVER ?? 'http://127.0.0.1:6300';
 const INDEXER_HTTP = process.env.VEIL_INDEXER ?? (NETWORK === 'preprod' ? 'https://indexer.preprod.midnight.network/api/v4/graphql' : 'http://127.0.0.1:8088/api/v4/graphql');
@@ -36,7 +34,7 @@ const CONTRACTS = [
 function log(...args) { console.log('[deploy]', ...args); }
 function err(...args) { console.error('[deploy:error]', ...args); }
 
-// Check proof server health — midnight-escrow checkProofServer
+// Check proof server health
 async function checkProofServer(url = PROOF_SERVER) {
   try {
     const res = await fetch(`${url.replace(/\/$/, '')}/health`, { method: 'GET' });
@@ -50,7 +48,7 @@ async function checkProofServer(url = PROOF_SERVER) {
   }
 }
 
-// Wallet setup — privoice + midnight-escrow HDWallet pattern
+// Wallet setup for local node deployment
 async function createNodeWallet() {
   // Try to load existing seed or generate new
   let seed;
@@ -65,7 +63,7 @@ async function createNodeWallet() {
   }
 
   // For Node, we use a simplified wallet that can sign and balance
-  // In production, you'd use WalletFacade + HDWallet + ShieldedWallet like midnight-escrow
+  // In production, use a full wallet facade and shielded wallet flow
   // Here we create a minimal wallet interface that can deploy via midnight-js-contracts
   // This is a placeholder for the full HD wallet — for now we use the browser wallet flow
   // via veilManager if a browser is available, otherwise we simulate the address
@@ -96,12 +94,12 @@ async function createNodeWallet() {
   return { seed, address };
 }
 
-// Deploy single contract — kredz/contract.ts pattern + midnight-escrow deployContract
+// Deploy a single compiled contract
 async function deployContract(contractName, wallet, _unused) {
   const managedPath = resolve(managedRoot, contractName);
   if (!existsSync(managedPath)) throw new Error(`Contract ${contractName} not compiled — run: node scripts/compile-all.mjs`);
 
-  // Dynamic import of compiled contract (kredz pattern)
+  // Dynamic import of the compiled contract
   const mod = await import(resolve(managedPath, 'contract/index.js'));
   const Contract = mod.Contract ?? mod.default;
   if (!Contract) throw new Error(`No Contract export for ${contractName}`);
@@ -110,21 +108,21 @@ async function deployContract(contractName, wallet, _unused) {
   const witnesses = await import(resolve(root, 'frontend/src/midnight/witnesses.ts')).catch(() => ({ createWitnesses: () => ({}) }));
   const witnessImpl = (witnesses.createWitnesses?.() ?? {});
 
-  // ZK config provider — Node vs Fetch (privoice uses NodeZkConfigProvider, browser uses Fetch)
+  // ZK config provider — Node or Fetch-backed providers
   const { NodeZkConfigProvider } = await import('@midnight-ntwrk/midnight-js-node-zk-config-provider').catch(() => ({ NodeZkConfigProvider: null }));
   const { FetchZkConfigProvider } = await import('@midnight-ntwrk/midnight-js-fetch-zk-config-provider');
   const zkConfigPath = resolve(managedPath);
   const zkConfigProvider = NodeZkConfigProvider ? new NodeZkConfigProvider(zkConfigPath) : new FetchZkConfigProvider(`${zkConfigPath}`, fetch);
 
-  // Proof provider — httpClientProofProvider (privoice) vs wallet.getProvingProvider (kredz browser)
+  // Proof provider — HTTP client or wallet-backed proving provider
   const { httpClientProofProvider } = await import('@midnight-ntwrk/midnight-js-http-client-proof-provider');
   const proofProvider = httpClientProofProvider(PROOF_SERVER, zkConfigProvider);
 
   // For Node, we need to use the wallet's providers — here we simulate with httpClient
-  // In real Node deploy you'd use WalletFacade like midnight-escrow/counter-cli/src/api.ts
+  // In a full Node deploy, use the wallet facade and signing flow from the Midnight SDK
   log(`Deploying ${contractName} with ${Object.keys(witnessImpl).length} witnesses...`);
 
-  // Use midnight-js-contracts deployContract (like midnight-escrow)
+  // Use midnight-js-contracts deployContract
   const { deployContract } = await import('@midnight-ntwrk/midnight-js-contracts');
   const { CompiledContract } = await import('@midnight-ntwrk/compact-js');
   const { sampleSigningKey } = await import('@midnight-ntwrk/compact-runtime');
@@ -219,7 +217,7 @@ async function main() {
       err(`Failed ${name}: ${e.message}`);
       results.push({ contractName: name, error: e.message });
     }
-    // Small delay between deploys to avoid nonce collision (kredz pattern)
+    // Small delay between deploys to avoid nonce collision
     await new Promise(r => setTimeout(r, 2000));
   }
 

@@ -131,7 +131,7 @@ export function adminSecretWitness(
   context: { privateState: any }
 ): [any, { bytes: Uint8Array }] {
   const ps = context.privateState ?? {};
-  const secret = (ps as any).adminSecret ?? persistentSecret('compliance.admin');
+  const secret = (ps as any).adminSecret ?? (ps as any).auditorAdmin ?? persistentSecret('auditor.admin');
   return [{ ...ps, adminSecret: secret }, { bytes: secret }];
 }
 
@@ -500,7 +500,6 @@ export function createWitnesses() {
     localPayee: localPayeeWitness,
     // AuditorRegistry
     getAuditorSecret: (ctx: any) => [{ ...ctx.privateState }, { bytes: persistentSecret('auditor.secret') }],
-    getAdminSecret: (ctx: any) => [{ ...ctx.privateState }, { bytes: persistentSecret('auditor.admin') }],
     auditSalt: (ctx: any) => [{ ...ctx.privateState }, persistentSecret('auditor.salt')],
     auditTimestamp: (ctx: any) => [{ ...ctx.privateState }, BigInt(Math.floor(Date.now() / 1000))],
     // Legacy grouped (kept for compat, not used by Contract constructor)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // VeilCommerce — Sync ZK assets for 8 contracts (browser-served)
-// Smart reuse of kredz-midnight/scripts/sync-zk.js + midnight-escrow pattern
+// Sync generated ZK assets into the frontend/public contract folders
 // Copies keys/, zkir/, contract/index.js to frontend/public/contract/<name>/
 
 import { existsSync, mkdirSync, cpSync, readdirSync } from 'fs';

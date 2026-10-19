@@ -69,7 +69,6 @@ export function Trade() {
     }
   };
 
-  // Smart deploy — uses veilManager (dmarket + kredz pattern) for real on-chain PO
   const handleCreatePurchaseOrder = async () => {
     if (!isConnected || !session) {
       setError('Connect wallet first — 1AM dust-free or Lace');
@@ -116,7 +115,6 @@ export function Trade() {
     }
   };
 
-  // Real ZK verification — calls PurchaseOrder circuits via veilManager (kredz pattern)
   const handleVerify = async (key: 'buyerVerified' | 'sellerVerified' | 'fundsVerified', circuit: string) => {
     if (!isConnected || !session || !contractAddress || !state.orderIdBytes) {
       setError('Deploy PurchaseOrder first, then verify — requires contractAddress + orderIdBytes');

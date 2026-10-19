@@ -1,4 +1,4 @@
-# VeilCommerce — Proof Server + Local Midnight Node (Smart reuse: midnight-escrow standalone.yml + dmarket docker)
+# VeilCommerce — Proof Server + Local Midnight Node
 # For local `undeployed` development; preprod/preview use hosted proof server via 1AM ProofStation
 version: "3.8"
 services:
@@ -17,7 +17,7 @@ services:
       retries: 20
       start_period: 10s
 
-  # Optional: full local stack (node + indexer) for `undeployed` network — mirrors midnight-escrow standalone
+  # Optional: full local stack (node + indexer) for `undeployed` network
   # Uncomment to run fully local without preprod; otherwise preprod uses hosted indexer/RPC
   # node:
   #   image: 'midnightntwrk/midnight-node:0.20.0'

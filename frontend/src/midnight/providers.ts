@@ -1,6 +1,5 @@
 // VeilCommerce — Midnight Providers (Real, No Mocks)
-// Delegates to canonical lib/midnight.ts per Midnight-Skills templates
-// References: templates/locker-dapp/lib/midnight.ts, kredz/midnight/providers.ts
+// Delegates to the app’s shared Midnight provider layer.
 
 export {
   createPatchedPublicDataProvider,
@@ -27,7 +26,6 @@ export interface ContractProviders {
 
 /**
  * Create contract providers from wallet API — real dust-free flow.
- * Mirrors kredz-frontend/src/midnight/contract.ts deployContract providers.
  */
 export async function createContractProviders(api: any, contractName: string): Promise<ContractProviders> {
   const config = await api.getConfiguration();

@@ -1,13 +1,7 @@
 // =============================================================================
-// VeilCommerce — Wallet Context (1AM + Lace) — Reference Accurate
+// VeilCommerce — Wallet Context (1AM + Lace)
 // -----------------------------------------------------------------------------
-// Strictly follows reference implementations from the 11 repos:
-//  - Midnight-Skills templates/locker-dapp/lib/midnight.ts (canonical session)
-//  - dmarket-main/gui/src/contexts/BrowserDeployedDMarketManager.ts (robust
-//    polling, semver check, Object.values(window.midnight) UUID enumeration)
-//  - kredz-main/kredz-frontend/src/hooks/useMidnightWallet.ts (1AM polling)
-//  - Midnight-ZK-Judge/frontend/src/contexts/MidnightContext.tsx (midnight + lace)
-//  - Midnight-Skills 1am-wallet + react-wallet-connector skills
+// Handles wallet discovery, connection, and session setup for Midnight wallets.
 // No mocks, no simulations — real wallet only.
 // =============================================================================
 
@@ -56,7 +50,7 @@ function inferWalletTypeFromWallets(wallets: DetectedWallet[]): WalletType {
   return wallets.length > 0 ? null : null;
 }
 
-// Poll for wallet with interval, like kredz 50*100ms and dmarket interval(100)
+// Poll for wallet until the extension is detected.
 function waitForWallet(timeoutMs = 2000, intervalMs = 100): Promise<DetectedWallet | null> {
   return new Promise((resolve) => {
     const start = Date.now();
@@ -68,7 +62,7 @@ function waitForWallet(timeoutMs = 2000, intervalMs = 100): Promise<DetectedWall
         return;
       }
       if (Date.now() - start >= timeoutMs) {
-        // Also check raw fallback like kredz does: window.midnight['1am']
+        // Also check raw fallback for directly exposed wallet objects
         const raw = (window as any).midnight?.['1am'] ?? (window as any).midnight?.mnLace ?? (window as any).lace?.midnight;
         if (raw) {
           const name = raw.name ?? (raw === (window as any).midnight?.['1am'] ? '1AM' : 'Lace');
@@ -114,7 +108,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return wallets;
   }, [isConnected]);
 
-  // Initial detection — mirrors Midnight-ZK-Judge 1500ms interval and dmarket 100ms polling
+  // Initial detection — poll for late wallet injection before giving up
   useEffect(() => {
     refreshWallets();
     const startedAt = Date.now();
@@ -143,7 +137,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setIsConnecting(true);
     setError(null);
 
-    // Version check — like dmarket semver 4.x check (without semver dep, use prefix)
+    // Version check — validate the compatible wallet API prefix without pulling in semver
     if (wallet.api?.apiVersion) {
       const v = String(wallet.api.apiVersion);
       if (!v.startsWith('4.')) {
@@ -158,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log(`[VeilCommerce] Connecting to ${wallet.name} (${wallet.type}) on ${network}...`);
       let api: any;
-      // DApp Connector API: connect(networkId) — dmarket/kredz style
+      // DApp Connector API: connect(networkId)
       // 1AM supports string, Lace supports string, legacy may support {networkId}
       try {
         api = await wallet.api.connect(network);
@@ -191,7 +185,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Wallet did not return a valid ConnectedAPI. Is wallet unlocked and on correct network?');
       }
 
-      // Verify connection status if available (dmarket does getConnectionStatus)
+      // Verify connection status if available
       try {
         if (typeof api.getConnectionStatus === 'function') {
           const status = await api.getConnectionStatus();
@@ -217,7 +211,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return sess;
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Map common errors to user-friendly messages like kredz does: ONEM_NOT_FOUND etc
+      // Map common errors to user-friendly wallet warnings
       let friendly = msg;
       if (msg.includes('ONEM_NOT_FOUND') || msg.includes('No Midnight wallet')) {
         friendly = '1AM wallet not found. Please install the 1AM extension and refresh.';
@@ -248,7 +242,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return connectWallet(preferred, network);
     }
 
-    // No wallets yet — wait for injection like kredz 5s polling (50*100ms)
+    // No wallets yet — wait for injection before failing the connection attempt
     console.log('[VeilCommerce] no wallets immediately, polling for injection...');
     const polled = await waitForWallet(3000, 100);
     if (polled) {

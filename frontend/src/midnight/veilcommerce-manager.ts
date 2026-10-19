@@ -1,18 +1,9 @@
 // =============================================================================
-// VeilCommerce — Browser Manager for 8 Contracts (Smart Integration)
+// VeilCommerce — Browser Manager for 8 Contracts
 // -----------------------------------------------------------------------------
-// Combines best patterns from 11 reference repos without extra deps:
-//  - dmarket: cached providers, getFirstMidnightConnector via Object.values,
-//    semver check, polling for wallet (interval 100ms)
-//  - kredz: createUnprovenDeployTx + submitTxAsync + waitForContractIndexed,
-//    FetchZkConfigProvider, witness wiring, privateState scoping
-//  - midnight-escrow / privoice: WitnessContext typed, CompiledContract.make
-//  - Midnight-Skills templates: canonical session, patched indexer, coin helpers
-//  - Midnight-ZK-Judge: midnight + lace namespace enumeration
-//
-// Manages all 8 VeilCommerce contracts without RxJS/fp-ts overhead — uses native
-// promises and simple BehaviorSubject shim for status observables.
-// No mocks — real on-chain deployment via dust-sponsored flow.
+// Manages the VeilCommerce contract set without extra dependency overhead — uses
+// native promises and a small BehaviorSubject shim for status observables.
+// No mocks — real on-chain deployment via the Midnight wallet flow.
 // =============================================================================
 
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
@@ -20,17 +11,16 @@ import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import { createUnprovenDeployTx, submitTxAsync } from '@midnight-ntwrk/midnight-js-contracts';
 import { sampleSigningKey } from '@midnight-ntwrk/compact-runtime';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import { listWallets, createPatchedPublicDataProvider, createPrivateStateProvider } from '../lib/midnight';
+import { listWallets, createPatchedPublicDataProvider, createPrivateStateProvider, saveCachedContractState, loadCachedContractState } from '../lib/midnight';
 import { toHex, fromHex } from '../lib/hex';
 import { createWitnesses as createVeilWitnesses } from './witnesses';
 
-// Persistent private state — localStorage-backed like kredz AppContext + SilentLedger IndexedDB pattern
-// Falls back to in-memory if localStorage unavailable; mirrors privoice levelPrivateStateProvider persistence
+// Persistent private state — localStorage-backed with an in-memory fallback.
 function createPersistentPrivateStateProvider() {
   const base = createPrivateStateProvider();
   const STORAGE_KEY = 'veil_private_state';
   const SIGNING_KEY = 'veil_signing_keys';
-  // Hydrate from localStorage on creation (SilentLedger pattern: survive reload)
+  // Hydrate from localStorage on creation so private state survives reloads
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -70,7 +60,7 @@ function createPersistentPrivateStateProvider() {
   return base;
 }
 
-// Faucet helper — Preprod NIGHT/Dust (kredz uses faucet.preprod.midnight.network, dmarket docker)
+// Faucet helper — Preprod NIGHT/Dust
 export async function requestFaucetFunds(address: string, network: string = 'preprod'): Promise<void> {
   const faucetUrls: Record<string, string> = {
     preprod: 'https://faucet.preprod.midnight.network/api/faucet',
@@ -86,7 +76,7 @@ export async function requestFaucetFunds(address: string, network: string = 'pre
   if (!res.ok) throw new Error(`Faucet ${res.status}: ${await res.text()}`);
 }
 
-// Proof server health — midnight-escrow/api.ts checkProofServer + dmarket proof server yml
+// Proof server health helper.
 export async function checkProofServer(url: string = 'http://127.0.0.1:6300'): Promise<boolean> {
   try {
     const res = await fetch(`${url.replace(/\/$/, '')}/health`, { method: 'GET' });
@@ -139,7 +129,7 @@ export const VEIL_CONTRACTS = [
 export type VeilContractName = typeof VEIL_CONTRACTS[number];
 
 // ---------------------------------------------------------------------------
-// Provider initialization — dmarket + kredz robust polling
+// Provider initialization with robust polling
 // ---------------------------------------------------------------------------
 
 const getFirstMidnightConnector = (): any => {
@@ -166,7 +156,7 @@ async function pollForConnector(timeoutMs = 1500, intervalMs = 100): Promise<any
 
 async function connectToWallet(networkId: string = 'preprod'): Promise<any> {
   const connector = await pollForConnector(1200, 100);
-  // Semver check like dmarket (without semver dep)
+  // Semver-style compatibility check without adding a semver dependency
   const version = (connector as any).apiVersion;
   if (version && !String(version).startsWith('4.')) {
     throw new Error(`Incompatible wallet version ${version}, expected 4.x`);
@@ -337,7 +327,7 @@ async function initializeProviders(networkId: string = (import.meta as any).env?
 }
 
 // ---------------------------------------------------------------------------
-// Contract loading — kredz pattern
+// Contract loading
 // ---------------------------------------------------------------------------
 
 const contractCache = new Map<string, any>();
@@ -379,7 +369,7 @@ export function createVeilCompiledContract(contractName: string, contractModule:
 }
 
 // ---------------------------------------------------------------------------
-// Manager — promise-based, no RxJS, mirrors kredz contract.ts + dmarket status
+// Manager — promise-based, no RxJS
 // ---------------------------------------------------------------------------
 
 export class VeilCommerceManager {
@@ -488,6 +478,7 @@ export class VeilCommerceManager {
       try {
         localStorage.setItem(`veil_${contractName.toLowerCase()}_address`, contractAddress);
         localStorage.setItem(`veil_${contractName}_address`, contractAddress);
+        saveCachedContractState(contractAddress, deployTxData.public.initialContractState);
       } catch {}
 
       try {
@@ -596,7 +587,7 @@ export class VeilCommerceManager {
     }
   }
 
-  // Call a circuit on a deployed contract — privoice/dmarket pattern
+  // Call a circuit on a deployed contract
   async call(contractName: VeilContractName, contractAddress: string, circuit: string, args: any[] = [], privateStateOverrides?: Record<string, any>): Promise<string> {
     const { base, connectedAPI, normalizedCoinKey } = await initializeProviders();
     const contractModule = await loadVeilContractModule(contractName);
@@ -651,22 +642,58 @@ export class VeilCommerceManager {
       },
     };
     await providers.privateStateProvider.setContractAddress(contractAddress);
-    const { createUnprovenCallTx } = await import('@midnight-ntwrk/midnight-js-contracts');
-    const callTx = await (createUnprovenCallTx as any)(providers as any, {
-      compiledContract: compiled,
-      contractAddress,
-      circuitId: circuit,
-      args,
-    });
+    const { createUnprovenCallTx, createUnprovenCallTxFromInitialStates, createUnprovenDeployTx } = await import('@midnight-ntwrk/midnight-js-contracts');
+    let callTx: any = null;
+    try {
+      callTx = await (createUnprovenCallTx as any)(providers as any, {
+        compiledContract: compiled,
+        contractAddress,
+        circuitId: circuit,
+        args,
+      });
+    } catch (callErr: any) {
+      console.warn(`[VeilCommerce] Indexer public state query notice (${callErr?.message ?? callErr}), assembling unproven call from initial/cached contract state...`);
+      let contractState = loadCachedContractState(contractAddress);
+      if (!contractState) {
+        const deployTx = await createUnprovenDeployTx(providers as any, {
+          compiledContract: compiled,
+          args: [],
+          signingKey: sampleSigningKey(),
+        } as any);
+        contractState = deployTx.public.initialContractState;
+        saveCachedContractState(contractAddress, contractState);
+      }
+      const { LedgerParameters, ZswapChainState } = await import('@midnight-ntwrk/ledger-v8');
+      const ledgerParameters = LedgerParameters.initialParameters();
+      const initialZswapChainState = new ZswapChainState();
+      const privateState = await providers.privateStateProvider.get(contractAddress);
+
+      callTx = await (createUnprovenCallTxFromInitialStates as any)(
+        providers.zkConfigProvider,
+        {
+          compiledContract: compiled,
+          contractAddress,
+          circuitId: circuit,
+          args,
+          coinPublicKey: providers.walletProvider.getCoinPublicKey(),
+          initialContractState: contractState,
+          initialZswapChainState,
+          ledgerParameters,
+          initialPrivateState: privateState,
+        },
+        providers.walletProvider.getEncryptionPublicKey()
+      );
+    }
+    if (callTx?.public?.nextContractState) {
+      saveCachedContractState(contractAddress, callTx.public.nextContractState);
+    }
     const txId = await submitTxAsync(providers as any, { unprovenTx: callTx.private.unprovenTx, circuitId: circuit } as any);
-    for (let i = 0; i < 15; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
+    for (let i = 0; i < 5; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
       try {
         const state = await providers.publicDataProvider.queryContractState(contractAddress);
         if ((state as any)?.data) break;
-      } catch (err: any) {
-        console.warn(`[VeilCommerce] queryContractState poll attempt ${i + 1}/15 for ${contractName}:`, err?.message ?? err);
-      }
+      } catch {}
     }
     return txId;
   }

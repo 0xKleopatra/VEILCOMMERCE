@@ -176,7 +176,7 @@ IF buyer_authorized AND seller_authorized AND po_valid
 
 ### 4.4 Invoice
 
-**Purpose:** Verified private receivable (Privoice pattern)
+**Purpose:** Verified private receivable
 
 **Key Circuits:**
 - `issue(invoiceId, orderId, dueAt, createdAt)`

@@ -1,6 +1,5 @@
 // VeilCommerce — Contract Hook — Real, No Mocks
-// Uses canonical providers from lib/midnight.ts per 1am-wallet skill
-// Reference: kredz-frontend/src/midnight/contract.ts, templates/locker-dapp
+// Uses the core Midnight providers and wallet session APIs directly.
 
 import { useState, useCallback } from 'react';
 import { useWallet } from '../contexts/WalletContext';

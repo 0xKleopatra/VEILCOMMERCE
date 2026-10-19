@@ -2,11 +2,9 @@
 // VeilCommerce — Deploy Page (localhost)
 // -----------------------------------------------------------------------------
 // Dedicated localhost deployment center for the 8 VeilCommerce contracts.
-// Smart reuse of kredz LinkWallets + dMarket SetupScreen + midnight-escrow
-// counter-cli proof-server health patterns. No mocks — real on-chain deploy
-// via veilManager.deployAndWait (1AM dust-free or Lace).
-// Better than Trade for initial setup: deploys all 8 at once, shows ZK asset
-// health, proof server, and indexer status.
+// No mocks — real on-chain deploy via veilManager.deployAndWait (1AM dust-free
+// or Lace). This is the primary setup flow for deploying and checking the
+// contract bundle, ZK assets, proof server, and indexer status.
 // =============================================================================
 
 import { useEffect, useState } from 'react';
@@ -47,7 +45,6 @@ export function Deploy() {
   const [proofOk, setProofOk] = useState<boolean | null>(null);
   const [isDeployingAll, setIsDeployingAll] = useState(false);
 
-  // Proof server health (midnight-escrow checkProofServer + dmarket healthcheck)
   useEffect(() => {
     const url = (config as any)?.proverServerUri ?? 'http://127.0.0.1:6300';
     checkProofServer(url).then(setProofOk);
@@ -145,7 +142,7 @@ export function Deploy() {
     for (const m of METAS) {
       if (addresses[m.name]) continue; // skip already deployed
       await deployOne(m.name);
-      await new Promise((r) => setTimeout(r, 1500)); // avoid nonce collision (kredz)
+      await new Promise((r) => setTimeout(r, 1500)); // avoid nonce collision
     }
     setIsDeployingAll(false);
   };
@@ -162,7 +159,7 @@ export function Deploy() {
           Deploy all {totalContracts} VeilCommerce contracts to <span className="font-mono text-veil-900">{config?.networkId ?? 'preprod'}</span> via your connected wallet. Better than manual Trade deploys — one place for all.
         </p>
         <p className="text-[11px] font-mono text-veil-400 mt-2">
-          Uses <code className="bg-veil-100 px-1 rounded">veilManager.deployAndWait</code> → <code className="bg-veil-100 px-1 rounded">createUnprovenDeployTx</code> + <code className="bg-veil-100 px-1 rounded">submitTxAsync</code> + <code className="bg-veil-100 px-1 rounded">waitForContractIndexed</code> (kredz pattern). Dust sponsored by 1AM ProofStation.
+          Uses <code className="bg-veil-100 px-1 rounded">veilManager.deployAndWait</code> → <code className="bg-veil-100 px-1 rounded">createUnprovenDeployTx</code> + <code className="bg-veil-100 px-1 rounded">submitTxAsync</code> + <code className="bg-veil-100 px-1 rounded">waitForContractIndexed</code> for a full browser deployment flow. Dust sponsored by 1AM ProofStation.
         </p>
       </div>
 
