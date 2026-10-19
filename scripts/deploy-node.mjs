@@ -30,6 +30,7 @@ const CONTRACTS = [
   'Compliance',
   'CredentialRegistry',
   'Settlement',
+  'AuditorRegistry',
 ];
 
 function log(...args) { console.log('[deploy]', ...args); }
